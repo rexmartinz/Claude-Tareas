@@ -1,0 +1,2944 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Lector de Archivo de Pagos</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap');
+
+  :root{
+    --ink:#12181f;
+    --ink-soft:#1c2530;
+    --paper:#f6f2e9;
+    --paper-line:#dcd4c2;
+    --brass:#b8912f;
+    --brass-soft:#e8d9ab;
+    --ok:#3e6b52;
+    --ok-bg:#e2ede6;
+    --err:#a33b32;
+    --err-bg:#f3e1de;
+    --warn:#8a6d1f;
+    --warn-bg:#f2e9d2;
+    --muted:#6b6459;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--ink);
+    color:var(--paper);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:40px 24px 80px;}
+
+  .tape{display:flex;align-items:center;gap:10px;margin-bottom:28px;}
+  .tape .hole{width:7px;height:7px;border-radius:50%;background:var(--ink-soft);border:1px solid #2c3846;}
+  .tape .line{flex:1;height:1px;background:linear-gradient(90deg,transparent,#3a4552,transparent);}
+
+  header h1{font-family:'Source Serif 4',serif;font-weight:600;font-size:2.1rem;margin:0 0 6px;letter-spacing:-.01em;}
+  header .sub{font-family:'IBM Plex Mono',monospace;color:var(--brass-soft);font-size:.82rem;text-transform:uppercase;letter-spacing:.12em;margin-bottom:32px;}
+
+  .type-row{margin-bottom:16px;}
+  .type-row label{display:block;font-family:'IBM Plex Mono',monospace;font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;color:var(--brass-soft);margin-bottom:8px;}
+  select{
+    font-family:'IBM Plex Mono',monospace;font-size:.88rem;background:var(--ink-soft);color:var(--paper);
+    border:1px solid #3a4552;border-radius:5px;padding:11px 14px;width:100%;max-width:420px;cursor:pointer;
+  }
+  select:focus{outline:2px solid var(--brass);outline-offset:1px;}
+  input[type=text]{
+    font-family:'IBM Plex Mono',monospace;font-size:.88rem;background:var(--ink-soft);color:var(--paper);
+    border:1px solid #3a4552;border-radius:5px;padding:11px 14px;width:100%;max-width:420px;box-sizing:border-box;
+  }
+  input[type=text]:focus{outline:2px solid var(--brass);outline-offset:1px;}
+  .form-label{font-family:'IBM Plex Mono',monospace;font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--brass-soft);margin-bottom:6px;}
+  .type-note{font-family:'IBM Plex Mono',monospace;font-size:.76rem;color:#8b93a0;margin-top:8px;line-height:1.5;}
+  .type-note.pending{color:var(--brass-soft);}
+
+  .excel-box{background:var(--ink-soft);border:1px solid #3a4552;border-radius:6px;padding:20px 24px;margin-bottom:20px;}
+  .excel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:6px;}
+  #excelInput{display:none;}
+  .excel-preview{margin-top:16px;max-height:260px;overflow:auto;border:1px solid #3a4552;border-radius:5px;}
+  .excel-preview table{width:100%;font-size:.78rem;min-width:0;}
+  .excel-preview thead th{position:sticky;top:0;background:var(--ink-soft);color:#8b93a0;padding:8px 10px;border-bottom:1px solid #3a4552;}
+  .excel-preview tbody td{padding:7px 10px;border-bottom:1px solid #2a333f;color:#c7cdd6;white-space:nowrap;}
+  .excel-preview tbody tr:hover{background:#232e3b;}
+  .excel-preview .changed{color:var(--brass-soft);font-weight:600;}
+  .excel-confirm-row{margin-top:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+  .confirm-note{margin-top:14px;background:var(--ok-bg);color:var(--ok);border-left:3px solid var(--ok);padding:10px 16px;border-radius:3px;font-size:.85rem;}
+
+  .slot{
+    background:var(--ink-soft);border:1px dashed #3a4552;border-radius:6px;padding:28px;
+    display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;transition:opacity .15s;
+  }
+  .slot.drag{border-color:var(--brass);background:#232e3b;}
+  .slot.disabled{opacity:.45;pointer-events:none;}
+  .slot-text .t1{font-weight:600;font-size:1rem;margin-bottom:4px;}
+  .slot-text .t2{font-family:'IBM Plex Mono',monospace;font-size:.78rem;color:#8b93a0;}
+  .btn{
+    font-family:'IBM Plex Mono',monospace;background:var(--brass);color:var(--ink);border:none;
+    padding:11px 20px;border-radius:4px;font-size:.82rem;font-weight:600;cursor:pointer;letter-spacing:.03em;white-space:nowrap;
+  }
+  .btn:hover{background:var(--brass-soft);}
+  .btn.ghost{background:transparent;color:var(--brass-soft);border:1px solid #3a4552;}
+  .btn.ghost:hover{border-color:var(--brass);}
+  .btn.danger{background:transparent;color:#e0a39c;border:1px solid #5c3530;}
+  .btn.danger:hover{background:var(--err-bg);color:var(--err);border-color:var(--err);}
+  input[type=file]{display:none;}
+
+  .filename{font-family:'IBM Plex Mono',monospace;font-size:.78rem;color:var(--brass-soft);margin-top:10px;}
+  .error-banner{margin-top:16px;background:var(--err-bg);color:var(--err);border-left:3px solid var(--err);padding:12px 16px;border-radius:3px;font-size:.88rem;}
+  .warn-banner{margin-top:16px;background:var(--warn-bg);color:var(--warn);border-left:3px solid var(--warn);padding:12px 16px;border-radius:3px;font-size:.85rem;line-height:1.5;}
+
+  .tabs-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:24px;}
+  .tabs-label{font-family:'IBM Plex Mono',monospace;font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;color:#8b93a0;margin-right:4px;}
+  .tab{
+    display:flex;align-items:center;gap:8px;background:var(--ink-soft);border:1px solid #3a4552;border-radius:20px;
+    padding:6px 8px 6px 14px;cursor:pointer;font-family:'IBM Plex Mono',monospace;font-size:.76rem;color:#c7cdd6;
+  }
+  .tab:hover{border-color:var(--brass);}
+  .tab.active{background:var(--brass);color:var(--ink);border-color:var(--brass);font-weight:600;}
+  .tab .x{background:rgba(0,0,0,.15);border-radius:50%;width:16px;height:16px;display:flex;align-items:center;justify-content:center;font-size:.7rem;line-height:1;}
+  .tab .x:hover{background:var(--err);color:#fff;}
+  .clear-all-link{font-family:'IBM Plex Mono',monospace;font-size:.72rem;color:#8b93a0;text-decoration:underline;cursor:pointer;margin-left:auto;}
+  .clear-all-link:hover{color:var(--err-bg);}
+
+  .paper{background:var(--paper);color:var(--ink);border-radius:8px;margin-top:18px;padding:32px;display:none;overflow-x:auto;}
+  .paper.show{display:block;}
+  .paper-top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:24px;}
+  .paper-top .meta{font-family:'IBM Plex Mono',monospace;font-size:.76rem;color:var(--muted);}
+  .paper-top .meta b{color:var(--ink);}
+
+  .stat-row{display:grid;gap:1px;background:var(--paper-line);border:1px solid var(--paper-line);border-radius:6px;overflow:hidden;margin-bottom:30px;}
+  .stat{background:var(--paper);padding:18px 20px;}
+  .stat .label{font-family:'IBM Plex Mono',monospace;font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:8px;}
+  .stat .value{font-family:'Source Serif 4',serif;font-weight:600;font-size:1.5rem;}
+  .stat.valid .value{color:var(--ok);}
+  .stat.invalid .value{color:var(--err);}
+
+  .section-title{font-family:'IBM Plex Mono',monospace;font-size:.75rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:0 0 12px;display:flex;align-items:center;gap:10px;}
+  .section-title::after{content:"";flex:1;height:1px;background:var(--paper-line);}
+
+  table{width:100%;border-collapse:collapse;font-size:.86rem;min-width:640px;}
+  thead th{text-align:left;font-family:'IBM Plex Mono',monospace;font-size:.66rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding:0 10px 8px;border-bottom:1px solid var(--ink);white-space:nowrap;}
+  tbody td{padding:10px;border-bottom:1px solid var(--paper-line);white-space:nowrap;}
+  tbody tr:hover{background:#efe9da;}
+  .mono{font-family:'IBM Plex Mono',monospace;font-size:.82rem;}
+  .amount{font-family:'IBM Plex Mono',monospace;text-align:right;}
+  .badge{font-family:'IBM Plex Mono',monospace;font-size:.7rem;font-weight:600;padding:3px 9px;border-radius:20px;display:inline-block;letter-spacing:.03em;}
+  .badge.ok{background:var(--ok-bg);color:var(--ok);}
+  .badge.err{background:var(--err-bg);color:var(--err);}
+  .badge.contrato{background:#e4dcc4;color:#4a3d24;font-weight:600;}
+  .file-chip{
+    display:inline-block;background:#e4dcc4;color:#4a3d24;
+    padding:4px 10px;border-radius:4px;font-family:'IBM Plex Mono',monospace;
+    font-size:.72rem;margin:2px 6px 2px 0;cursor:pointer;white-space:nowrap;
+  }
+  .file-chip:hover{background:var(--brass);color:var(--ink);}
+  tbody tr.selectable{cursor:pointer;}
+  tbody tr.row-selected{background:#e8d9ab !important;}
+  .asiento-meta{font-family:'IBM Plex Mono',monospace;font-size:.78rem;color:#8b93a0;margin-bottom:10px;}
+  .asiento-totals td{font-weight:600;border-top:2px solid var(--ink);border-bottom:none;}
+
+  .toggle-row{display:flex;gap:8px;margin:30px 0 12px;flex-wrap:wrap;}
+  .raw-view{display:none;}
+  .raw-view.show{display:block;}
+  .ruler-block{background:var(--ink);border-radius:6px;padding:16px;margin-bottom:10px;overflow-x:auto;}
+  .ruler-block .line-label{font-family:'IBM Plex Mono',monospace;font-size:.68rem;color:var(--brass-soft);margin-bottom:6px;text-transform:uppercase;letter-spacing:.08em;}
+  .rawline{font-family:'IBM Plex Mono',monospace;font-size:.72rem;white-space:pre;line-height:1.4;}
+  .seg{border-radius:2px;padding:1px 0;}
+  .seg-deuda{background:#4a3d24;color:#e8d9ab;}
+  .seg-concepto{background:#2e4a3d;color:#bfe3cf;}
+  .seg-usuario{background:#2e3d4a;color:#bcd7f0;}
+  .seg-importe{background:#4a2e2e;color:#f0bcbc;}
+  .seg-fecha{background:#3d2e4a;color:#dcbcf0;}
+  .seg-cb{background:#4a4224;color:#f0e0a0;}
+  .seg-impuesto{background:#5a2e4a;color:#f0bcdc;}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-family:'IBM Plex Mono',monospace;font-size:.68rem;color:#8b93a0;}
+  .legend span{display:inline-flex;align-items:center;gap:6px;}
+  .legend i{width:10px;height:10px;border-radius:2px;display:inline-block;}
+
+  .empty-note{font-family:'IBM Plex Mono',monospace;font-size:.78rem;color:#8b93a0;margin-top:14px;line-height:1.6;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="tape"><div class="hole"></div><div class="hole"></div><div class="hole"></div><div class="line"></div></div>
+  <header>
+    <h1>Lector de Archivo de Pagos</h1>
+    <div class="sub">Registros de ancho fijo · múltiples formatos</div>
+  </header>
+
+  <div class="type-row">
+    <label for="tipoSelect">Tipo de archivo</label>
+    <select id="tipoSelect">
+      <option value="" disabled selected>Seleccioná un tipo de archivo…</option>
+    </select>
+    <div class="type-note" id="tipoNote"></div>
+  </div>
+
+  <div style="margin-bottom:20px;display:flex;gap:10px;flex-wrap:wrap;">
+    <button class="btn ghost" id="excelToggle">⚙ Actualizar tabla de Contratos y Cuentas</button>
+    <button class="btn ghost" id="excelImpuestoToggle">⚙ Actualizar tabla de Impuestos</button>
+    <button class="btn ghost" id="excelContratosToggle">⚙ Actualizar tabla de Contratos</button>
+    <button class="btn ghost" id="impuestoSummaryBtn">📊 Ver Registros de Impuestos</button>
+    <button class="btn ghost" id="empresaSummaryBtn">📊 Ver Registros por Empresa</button>
+  </div>
+
+  <div class="excel-box" id="excelBox" style="display:none;">
+    <div class="excel-head">
+      <div class="slot-text">
+        <div class="t1">Tabla de Contratos y Cuentas</div>
+        <div class="t2" id="excelStatus">Usando la tabla por defecto (30 entes).</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <label class="btn ghost" for="excelInput">Cargar Excel</label>
+        <input type="file" id="excelInput" accept=".xlsx,.xls">
+        <button class="btn ghost" id="restoreEntes">Restaurar original</button>
+      </div>
+    </div>
+    <div class="type-note">El Excel debe tener columnas con encabezados "Ente", "Contrato", "Cuenta" y "Descripción del ente". Se actualiza por código de Ente (no hace falta traer todos los entes ni respetar un orden) — si el código no existe todavía, se agrega como uno nuevo. Esta tabla se usa para todos los tipos de archivo que identifican registros por Ente/Cuenta (por ahora, PR5 y ALV).</div>
+    <div class="error-banner" id="excelError" style="display:none;"></div>
+    <div class="excel-preview" id="excelPreview" style="display:none;"></div>
+    <div class="excel-confirm-row" id="excelConfirmRow" style="display:none;">
+      <button class="btn" id="excelConfirmBtn">✓ Confirmar cambios</button>
+      <span class="type-note" style="margin:0;">Revisá la vista previa y confirmá para aplicar y minimizar esta tabla.</span>
+    </div>
+    <div class="confirm-note" id="excelConfirmNote" style="display:none;"></div>
+  </div>
+
+  <div class="excel-box" id="excelImpuestoBox" style="display:none;">
+    <div class="excel-head">
+      <div class="slot-text">
+        <div class="t1">Tabla de Impuestos (Contrato / Cuenta / Subcuenta)</div>
+        <div class="t2" id="excelImpuestoStatus">Usando la tabla por defecto (30 códigos de impuesto).</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <label class="btn ghost" for="excelImpuestoInput">Cargar Excel</label>
+        <input type="file" id="excelImpuestoInput" accept=".xlsx,.xls">
+        <button class="btn ghost" id="restoreImpuestos">Restaurar original</button>
+      </div>
+    </div>
+    <div class="type-note">El Excel debe tener columnas con encabezados "Contrato", "Impuesto", "Cuenta" y "Subcuenta". Se actualiza por código de Impuesto (no hace falta traer todos los códigos ni respetar un orden — el Nombre del impuesto siempre viene de la tabla ya cargada). Códigos agrupados (00/09, 03/31, 04/05, 10/11, 14/27, 15/17, 19/26, 22/28): si traés solo uno del par, el otro se actualiza igual automáticamente. Se usa en todos los archivos que muestran impuesto: 0291, 0DG0, Débito por CBU y GIRE Nuevo (.6105).</div>
+    <div class="error-banner" id="excelImpuestoError" style="display:none;"></div>
+    <div class="excel-preview" id="excelImpuestoPreview" style="display:none;"></div>
+    <div class="excel-confirm-row" id="excelImpuestoConfirmRow" style="display:none;">
+      <button class="btn" id="excelImpuestoConfirmBtn">✓ Confirmar cambios</button>
+      <span class="type-note" style="margin:0;">Revisá la vista previa y confirmá para aplicar y minimizar esta tabla.</span>
+    </div>
+    <div class="confirm-note" id="excelImpuestoConfirmNote" style="display:none;"></div>
+  </div>
+
+  <div class="excel-box" id="excelContratosBox" style="display:none;">
+    <div class="excel-head">
+      <div class="slot-text">
+        <div class="t1">Tabla de Contratos (Contrato / Cuenta / Subcuenta / Nombre Empresa)</div>
+        <div class="t2" id="excelContratosStatus">Todavía no se cargó ninguna. Es la tabla principal para el Ingreso Interactivo.</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <label class="btn ghost" for="excelContratosInput">Cargar Excel</label>
+        <input type="file" id="excelContratosInput" accept=".xlsx,.xls">
+        <button class="btn ghost" id="restoreContratos">Vaciar tabla</button>
+      </div>
+    </div>
+    <div class="type-note">El Excel debe tener columnas con encabezados "Contrato", "Cuenta", "Subcuenta" y "Nombre Empresa". Se actualiza por número de Cuenta (no hace falta traer todas ni respetar un orden — si la cuenta no existe todavía, se agrega como nueva). Esta es la tabla principal de entidades para el Ingreso Interactivo, y también de donde se levantan Iosep, Municipalidad de Santiago y Municipalidad de La Banda (buscando por Nombre Empresa).</div>
+    <div class="error-banner" id="excelContratosError" style="display:none;"></div>
+    <div class="excel-preview" id="excelContratosPreview" style="display:none;"></div>
+    <div class="excel-confirm-row" id="excelContratosConfirmRow" style="display:none;">
+      <button class="btn" id="excelContratosConfirmBtn">✓ Confirmar cambios</button>
+      <span class="type-note" style="margin:0;">Revisá la vista previa y confirmá para aplicar y minimizar esta tabla.</span>
+    </div>
+    <div class="confirm-note" id="excelContratosConfirmNote" style="display:none;"></div>
+  </div>
+
+  <div class="excel-box" id="manualPanel" style="display:none;">
+    <div class="slot-text">
+      <div class="t1">Ingreso Interactivo — pago manual</div>
+      <div class="t2">Un cliente paga en el banco a la empresa/cuenta ingresada. Completá los datos y confirmá para generar el asiento.</div>
+    </div>
+    <div style="margin-top:16px;display:grid;gap:14px;max-width:520px;">
+      <div>
+        <div class="form-label">Cuenta de la empresa</div>
+        <input type="text" id="manualCuenta" placeholder="Ej: 3950">
+        <div class="type-note" id="manualNombreEmpresa" style="margin-top:6px;"></div>
+      </div>
+      <div id="manualImpuestoWrap" style="display:none;">
+        <div class="form-label">Impuesto a pagar (cuenta de DGR)</div>
+        <select id="manualImpuesto"></select>
+      </div>
+      <div>
+        <div class="form-label">Importe</div>
+        <input type="text" id="manualImporte" placeholder="Ej: 5500,00">
+      </div>
+      <div>
+        <div class="form-label">Forma de pago</div>
+        <select id="manualFormaPago">
+          <option value="efectivo">Efectivo</option>
+          <option value="caja_ahorro">Caja de Ahorros</option>
+          <option value="cta_cte">Cuenta Corriente</option>
+          <option value="cheque_bse">CC - Cheque BSE</option>
+          <option value="cheque_otros">Ch. Certificado otros Bancos</option>
+        </select>
+      </div>
+      <div id="manualCuentaClienteWrap" style="display:none;">
+        <div class="form-label">Nro de cuenta (cliente)</div>
+        <input type="text" id="manualCuentaCliente">
+      </div>
+      <div id="manualSubcuentaClienteWrap" style="display:none;">
+        <div class="form-label">Nro de subcuenta (cliente)</div>
+        <input type="text" id="manualSubcuentaCliente">
+      </div>
+      <div id="manualChequeWrap" style="display:none;">
+        <div class="form-label">Nro de cheque</div>
+        <input type="text" id="manualCheque">
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn" id="manualConfirmBtn">Confirmar</button>
+        <button class="btn ghost" id="manualResetBtn">Limpiar formulario</button>
+      </div>
+    </div>
+    <div class="error-banner" id="manualError" style="display:none;"></div>
+  </div>
+
+  <div class="slot" id="slot">
+    <div class="slot-text">
+      <div class="t1">Arrastrá el archivo .TXT acá, o elegilo manualmente</div>
+      <div class="t2" id="slotSub">Se procesa localmente en el navegador y queda guardado ahí — no se sube a ningún servidor externo</div>
+    </div>
+    <div>
+      <label class="btn" for="fileInput">Elegir archivo</label>
+      <input type="file" id="fileInput" accept=".txt">
+    </div>
+  </div>
+  <div class="filename" id="filename"></div>
+  <div class="error-banner" id="errorBanner" style="display:none;"></div>
+  <div class="warn-banner" id="warnBanner" style="display:none;"></div>
+
+  <div class="tabs-bar" id="tabsBar" style="display:none;">
+    <span class="tabs-label">Cargas guardadas en este navegador:</span>
+    <div id="tabsList" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+    <span class="clear-all-link" id="clearAll" title="Borra todas las cargas guardadas en este navegador">Vaciar todo el historial</span>
+  </div>
+
+  <div class="paper" id="paper">
+    <div class="paper-top">
+      <div class="meta" id="paperMeta"></div>
+      <button class="btn danger" id="clearActive">Limpiar esta carga</button>
+    </div>
+    <div class="stat-row" id="statRow"></div>
+
+    <div class="section-title">Detalle de registros</div>
+    <table>
+      <thead id="thead"></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+
+    <div class="toggle-row">
+      <button class="btn ghost" id="toggleRaw">Ver posiciones del archivo crudo</button>
+      <button class="btn ghost" id="toggleAsiento" style="display:none;">Ver asiento contable</button>
+      <button class="btn" id="nuevoRecaudoBtn" style="display:none;">+ Ingresar Nuevo Recaudo</button>
+    </div>
+    <div class="raw-view" id="rawView"></div>
+    <div class="raw-view" id="asientoView"></div>
+  </div>
+
+  <div class="paper" id="impuestoSummaryPanel">
+    <div class="paper-top">
+      <div class="meta" id="summaryMeta"><b>Registros de Impuestos</b> · totalizado de todos los archivos cargados</div>
+      <button class="btn danger" id="closeSummaryBtn">← Volver</button>
+    </div>
+    <div class="section-title" id="summarySectionTitle">Totales por impuesto (sumando todos los tipos de archivo que traen impuesto)</div>
+    <table>
+      <thead id="summaryThead"></thead>
+      <tbody id="summaryTbody"></tbody>
+    </table>
+    <div class="empty-note" id="summaryEmptyNote" style="display:none;"></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+const fileInput   = document.getElementById('fileInput');
+const slot        = document.getElementById('slot');
+const filenameEl  = document.getElementById('filename');
+const errorBanner = document.getElementById('errorBanner');
+const warnBanner  = document.getElementById('warnBanner');
+const paper       = document.getElementById('paper');
+const thead       = document.getElementById('thead');
+const tbody       = document.getElementById('tbody');
+const statRow     = document.getElementById('statRow');
+const rawView     = document.getElementById('rawView');
+const toggleRaw   = document.getElementById('toggleRaw');
+const toggleAsiento = document.getElementById('toggleAsiento');
+const nuevoRecaudoBtn = document.getElementById('nuevoRecaudoBtn');
+const asientoView = document.getElementById('asientoView');
+const tipoSelect  = document.getElementById('tipoSelect');
+const tipoNote    = document.getElementById('tipoNote');
+const tabsBar     = document.getElementById('tabsBar');
+const tabsList    = document.getElementById('tabsList');
+const clearAllBtn = document.getElementById('clearAll');
+const impuestoSummaryPanel = document.getElementById('impuestoSummaryPanel');
+const summaryMeta = document.getElementById('summaryMeta');
+const summarySectionTitle = document.getElementById('summarySectionTitle');
+const summaryThead = document.getElementById('summaryThead');
+const summaryTbody = document.getElementById('summaryTbody');
+const summaryEmptyNote = document.getElementById('summaryEmptyNote');
+const impuestoSummaryBtn = document.getElementById('impuestoSummaryBtn');
+const empresaSummaryBtn = document.getElementById('empresaSummaryBtn');
+const closeSummaryBtn = document.getElementById('closeSummaryBtn');
+const clearActiveBtn = document.getElementById('clearActive');
+
+// Excel de la Tabla de Contratos
+const excelContratosToggle = document.getElementById('excelContratosToggle');
+const excelContratosBox = document.getElementById('excelContratosBox');
+const excelContratosInput = document.getElementById('excelContratosInput');
+const excelContratosStatus = document.getElementById('excelContratosStatus');
+const excelContratosError = document.getElementById('excelContratosError');
+const excelContratosPreview = document.getElementById('excelContratosPreview');
+const excelContratosConfirmRow = document.getElementById('excelContratosConfirmRow');
+const excelContratosConfirmBtn = document.getElementById('excelContratosConfirmBtn');
+const excelContratosConfirmNote = document.getElementById('excelContratosConfirmNote');
+const restoreContratosBtn = document.getElementById('restoreContratos');
+excelContratosToggle.addEventListener('click', () => {
+  const show = excelContratosBox.style.display === 'none';
+  excelContratosBox.style.display = show ? 'block' : 'none';
+  excelContratosToggle.textContent = show ? '⚙ Ocultar tabla de Contratos' : '⚙ Actualizar tabla de Contratos';
+});
+
+// Ingreso Interactivo
+const manualPanel = document.getElementById('manualPanel');
+const manualCuenta = document.getElementById('manualCuenta');
+const manualNombreEmpresa = document.getElementById('manualNombreEmpresa');
+const manualImpuestoWrap = document.getElementById('manualImpuestoWrap');
+const manualImpuesto = document.getElementById('manualImpuesto');
+const manualImporte = document.getElementById('manualImporte');
+const manualFormaPago = document.getElementById('manualFormaPago');
+const manualCuentaClienteWrap = document.getElementById('manualCuentaClienteWrap');
+const manualCuentaCliente = document.getElementById('manualCuentaCliente');
+const manualSubcuentaClienteWrap = document.getElementById('manualSubcuentaClienteWrap');
+const manualSubcuentaCliente = document.getElementById('manualSubcuentaCliente');
+const manualChequeWrap = document.getElementById('manualChequeWrap');
+const manualCheque = document.getElementById('manualCheque');
+const manualConfirmBtn = document.getElementById('manualConfirmBtn');
+const manualResetBtn = document.getElementById('manualResetBtn');
+const manualError = document.getElementById('manualError');
+const paperMeta   = document.getElementById('paperMeta');
+const excelInput  = document.getElementById('excelInput');
+const excelStatus = document.getElementById('excelStatus');
+const excelError  = document.getElementById('excelError');
+const excelPreview= document.getElementById('excelPreview');
+const restoreEntesBtn = document.getElementById('restoreEntes');
+const excelToggle = document.getElementById('excelToggle');
+const excelBox = document.getElementById('excelBox');
+const excelConfirmRow = document.getElementById('excelConfirmRow');
+const excelConfirmBtn = document.getElementById('excelConfirmBtn');
+const excelConfirmNote = document.getElementById('excelConfirmNote');
+excelToggle.addEventListener('click', () => {
+  const show = excelBox.style.display === 'none';
+  excelBox.style.display = show ? 'block' : 'none';
+  excelToggle.textContent = show ? '⚙ Ocultar tabla de Contratos y Cuentas' : '⚙ Actualizar tabla de Contratos y Cuentas';
+});
+
+const excelImpuestoInput   = document.getElementById('excelImpuestoInput');
+const excelImpuestoStatus  = document.getElementById('excelImpuestoStatus');
+const excelImpuestoError   = document.getElementById('excelImpuestoError');
+const excelImpuestoPreview = document.getElementById('excelImpuestoPreview');
+const restoreImpuestosBtn  = document.getElementById('restoreImpuestos');
+const excelImpuestoToggle  = document.getElementById('excelImpuestoToggle');
+const excelImpuestoBox     = document.getElementById('excelImpuestoBox');
+const excelImpuestoConfirmRow  = document.getElementById('excelImpuestoConfirmRow');
+const excelImpuestoConfirmBtn  = document.getElementById('excelImpuestoConfirmBtn');
+const excelImpuestoConfirmNote = document.getElementById('excelImpuestoConfirmNote');
+excelImpuestoToggle.addEventListener('click', () => {
+  const show = excelImpuestoBox.style.display === 'none';
+  excelImpuestoBox.style.display = show ? 'block' : 'none';
+  excelImpuestoToggle.textContent = show ? '⚙ Ocultar tabla de Impuestos' : '⚙ Actualizar tabla de Impuestos';
+});
+
+// ---- Tipos de archivo disponibles ----
+const FILE_TYPES = [
+  { id:'0291',          label:'Archivo 0291' },
+  { id:'0DG0',          label:'Archivo 0DG0' },
+  { id:'PR5',           label:'Archivo PR5' },
+  { id:'GIRE_NUEVO',    label:'GIRE Nuevo (Rapipago)' },
+  { id:'GIRE_ANTERIOR', label:'GIRE Viejo BDP' },
+  { id:'DEBITO_CBU',    label:'Débito por CBU' },
+  { id:'ALV',           label:'ALV – Aguas de Santiago' },
+  { id:'MANUAL',        label:'Ingreso Interactivo' },
+];
+
+// ---- Configuración de posiciones por tipo (1-indexadas) ----
+const CONFIGS = {
+  'MANUAL': { kind: 'manual' },
+  '0291': {
+    kind: 'impuestos',
+    header: { datePos:5, dateLen:8 },
+    detail: {
+      idDeuda:[2,5], idConcepto:[7,3], idUsuario:[10,11],
+      importe:[21,12], fecha:[33,8], discrecional:[41,50],
+      cbStart:49, cbLen:36, impuestoPos:[49,2]
+    }
+  },
+  '0DG0': {
+    kind: 'impuestos',
+    header: { datePos:5, dateLen:8 },
+    detail: {
+      idDeuda:[2,5], idConcepto:[7,3], idUsuario:[10,19],
+      importe:[29,12], fecha:[41,8], discrecional:[49,50],
+      cbStart:49, cbLen:40, impuestoPos:[53,2]
+    }
+  },
+  'PR5': {
+    kind: 'entes',
+    detail: {
+      ente:[1,3], denominacion:[4,20], cantidad:[24,6], importe:[30,18],
+      signoAjuste:[48,1], ajuste:[49,16],
+      adherido:[65,1],
+      comisionEmisores:[66,16],
+      signoComisionAdherente:[82,1], comisionAdherente:[83,16],
+      ivaComisionEmisores:[99,16],
+      signoIvaComisionAdherente:[115,1], ivaComisionAdherente:[116,16],
+      percepcion:[132,16],
+      retencionesIVA:[148,16],
+      retencionesGanancias:[164,16],
+      retencionesIIBB:[180,16],
+      signoNeto:[196,1], neto:[197,18]
+    }
+  },
+  'DEBITO_CBU': {
+    kind: 'cbu',
+    // La fecha de pago de este archivo no se toma del registro (posición 44,
+    // largo 8) sino del nombre del archivo, posición 2, largo 8.
+    fileDate: { pos:2, len:8 },
+    detail: {
+      cbu:[1,22], impuesto:[23,2], importe:[52,12]
+    }
+  },
+  'ALV': {
+    kind: 'simple',
+    // Este archivo pertenece siempre al mismo ente (ALV), así que
+    // Contrato y Cuenta se resuelven una sola vez contra la misma
+    // tabla de Entes que usa PR5 (incluye el Excel de actualización).
+    ente: 'ALV',
+    // Estructura confirmada con posiciones (coincide con 0DG0):
+    // Importe pagado pos29 largo12, Fecha de pago pos41 largo8.
+    header: { datePos:5, dateLen:8 },
+    detail: {
+      importe:[29,12], fecha:[41,8]
+    }
+  },
+  'GIRE_NUEVO': {
+    kind: 'gire',
+    // La fecha del archivo se toma del nombre: posición 3, largo 6 (AAMMDD).
+    // Ej: "RP260925.6091" -> "260925" -> 25/09/2026.
+    fileDate: { pos:3, len:6 },
+    detail: {
+      fecha:[1,8], importe:[9,15], cbStart:24, impuestoPos:[28,2]
+    },
+    // Mismo formato de registro para las 3 entidades; se diferencian por
+    // la extensión del archivo (largo del código de barras y si trae impuesto).
+    variants: {
+      '6091': { entidad:'Municipalidad de Santiago', cbLen:54, impuestos:false },
+      '6105': { entidad:'DGR Santiago',               cbLen:40, impuestos:true  },
+      '6096': { entidad:'Municipalidad de La Banda',  cbLen:36, impuestos:false },
+    }
+  },
+  'GIRE_ANTERIOR': {
+    kind: 'bdp',
+    // Archivo delimitado (no de ancho fijo), 20 columnas. El delimitador
+    // se detecta automáticamente contra la línea de cabezal.
+    // La fecha del archivo se toma del nombre: posición 11, largo 6 (DDMMAA).
+    // Ej: "251_BDP_D_031225.4961" -> "031225" -> 03/12/2025.
+    fileDate: { pos:11, len:6 },
+    // Índices 0-based de las columnas que usamos (de las 20 totales).
+    cols: { importe:2, moneda:4, fechaOperacion:8, estatus:9, ref01:12 },
+    // El código de impuesto va dentro de GS_REF_01 (código de barras),
+    // a partir de la posición 5, largo 2 (offset 4, 0-based).
+    impuestoOffsetInRef01: 4, impuestoLenInRef01: 2,
+    // Se diferencian por el prefijo numérico del nombre del archivo.
+    variants: {
+      '251': { label:'GIRE Iosep',                          impuestos:false },
+      '252': { label:'Guías Electrónicas',                  impuestos:true  },
+      '253': { label:'Ingresos Brutos',                     impuestos:true  },
+      '254': { label:'Automotor/Inmobiliario',               impuestos:true  },
+      '255': { label:'Sellos (Agente de retención sellos)', impuestos:true  },
+      '256': { label:'Tasa Retributiva de Servicios',        impuestos:true  },
+    }
+  }
+};
+
+// ---- Tabla Impuesto -> Contrato / Nombre / Cuenta / Subcuenta ----
+// (archivos 0291 / 0DG0 / Débito por CBU / GIRE Nuevo .6105)
+// Tabla por defecto: una fila por código de impuesto. El Excel que se
+// puede cargar más abajo solo reemplaza Contrato/Cuenta/Subcuenta,
+// buscando por código de Impuesto — el Nombre siempre viene de acá.
+const IMPUESTO_TABLE_DEFAULT = [
+  ['00','228','DGR - 00/09 - Moratoria/Registro de la propiedad','',''],
+  ['09','228','DGR - 00/09 - Moratoria/Registro de la propiedad','',''],
+  ['01','185','DGR - 01 - Inmobiliario Urbano','',''],
+  ['02','229','DGR - 02 - Inmobiliario Rural','',''],
+  ['03','248','DGR - 03/31 - Automotores y Remolcados/PAT. Mercosur','',''],
+  ['31','248','DGR - 03/31 - Automotores y Remolcados/PAT. Mercosur','',''],
+  ['04','249','DGR - 04/05 - Ingresos Brutos/Grandes Contribuyentes','',''],
+  ['05','249','DGR - 04/05 - Ingresos Brutos/Grandes Contribuyentes','',''],
+  ['06','251','DGR - 06 - Tasa Retributiva de Servicios','',''],
+  ['07','252','DGR - 07 - Sellos','',''],
+  ['08','253','DGR - 08 - Convenio Multilateral','',''],
+  ['10','255','DGR - 10/11 - Fondo de reparacion social aporte/retenciones','',''],
+  ['11','255','DGR - 10/11 - Fondo de reparacion social aporte/retenciones','',''],
+  ['12','257','DGR - 12 - Agente de retencion','',''],
+  ['13','258','DGR - 13 - Agente de percepcion','',''],
+  ['14','259','DGR - 14/27 - DGR Receptorias Ingresos Brutos/Guía PT electronica IIBB','',''],
+  ['27','259','DGR - 14/27 - DGR Receptorias Ingresos Brutos/Guía PT electronica IIBB','',''],
+  ['15','260','DGR - 15/17 - Juegos de azar/Impuesto a los premios','',''],
+  ['17','260','DGR - 15/17 - Juegos de azar/Impuesto a los premios','',''],
+  ['16','261','DGR - 16 - Tasa de justicia','',''],
+  ['19','263','DGR - 19/26 - Recargo por improductividad/Cesion de haberes de inmobil','',''],
+  ['26','263','DGR - 19/26 - Recargo por improductividad/Cesion de haberes de inmobil','',''],
+  ['20','264','DGR - 20 - Agente de retencion de sellos','',''],
+  ['21','265','DGR - 21 - Recaudaciones ley 6602/02 Ing. Bru','',''],
+  ['22','266','DGR - 22/28 - DGR - Receptorias tasa retributiva de servicios/Guia PT','',''],
+  ['28','266','DGR - 22/28 - DGR - Receptorias tasa retributiva de servicios/Guia PT','',''],
+  ['23','267','DGR - 23 - DGR - Percepcion de aduanas (Sirpei)','',''],
+  ['24','268','DGR - 24 - DGR - Cesion de haberes de autom y remolcados','',''],
+  ['25','269','DGR - 25 - DGR - Cesion de haberes inmobiliario urbano','',''],
+  ['30','273','DGR - 30 - DGR - Impuestos no especificados','',''],
+];
+function normalizeImpuesto(code){
+  const c = code.trim();
+  return /^\d+$/.test(c) ? c.padStart(2,'0') : c.toUpperCase();
+}
+// Códigos que comparten un mismo concepto/contrato en la tabla original
+// (ej. "14/27" son el mismo ítem). Si el Excel de actualización solo trae
+// uno del par, el otro se actualiza igual automáticamente.
+const IMPUESTO_GROUPS = {
+  '00':['00','09'], '09':['00','09'],
+  '03':['03','31'], '31':['03','31'],
+  '04':['04','05'], '05':['04','05'],
+  '10':['10','11'], '11':['10','11'],
+  '14':['14','27'], '27':['14','27'],
+  '15':['15','17'], '17':['15','17'],
+  '19':['19','26'], '26':['19','26'],
+  '22':['22','28'], '28':['22','28'],
+};
+function buildImpuestoMap(table){
+  const map = {};
+  table.forEach(([impuesto,contrato,nombre,cuenta,subcuenta]) => {
+    map[normalizeImpuesto(impuesto)] = { contrato, nombre, cuenta, subcuenta };
+  });
+  return map;
+}
+let activeImpuestoTable = IMPUESTO_TABLE_DEFAULT.map(row => row.slice());
+let IMPUESTO_MAP = buildImpuestoMap(activeImpuestoTable);
+function lookupImpuesto(codigo){
+  const info = IMPUESTO_MAP[normalizeImpuesto(codigo)];
+  if(info) return { contrato: info.contrato, nombre: info.nombre, cuenta: info.cuenta, subcuenta: info.subcuenta, reconocido: true };
+  return { contrato: 'No definido', nombre: 'Impuesto no reconocido (' + codigo.trim() + ')', cuenta: '—', subcuenta: '—', reconocido: false };
+}
+
+// ---- Tabla de Contratos (Contrato / Cuenta / Subcuenta / Nombre Empresa) ----
+// Tabla principal de entidades para el Ingreso Interactivo. Se
+// busca por número de Cuenta. Iosep, Municipalidad de Santiago y
+// Municipalidad de La Banda se resuelven buscando por Nombre
+// Empresa contra esta misma tabla (no tienen código propio acá).
+let activeContratosTable = []; // [contrato, cuenta, subcuenta, nombreEmpresa]
+let CONTRATOS_MAP = {};
+function buildContratosMap(table){
+  const map = {};
+  table.forEach(([contrato, cuenta, subcuenta, nombreEmpresa]) => {
+    map[String(cuenta).trim()] = { contrato, subcuenta, nombreEmpresa };
+  });
+  return map;
+}
+function lookupContratoPorCuenta(cuenta){
+  const info = CONTRATOS_MAP[String(cuenta).trim()];
+  if(info) return { contrato: info.contrato, subcuenta: info.subcuenta, nombreEmpresa: info.nombreEmpresa, reconocido: true };
+  return { contrato: 'No definido', subcuenta: '-', nombreEmpresa: null, reconocido: false };
+}
+function lookupContratoPorNombre(patron){
+  const p = patron.trim().toUpperCase();
+  let match = activeContratosTable.find(([,,, nombre]) => (nombre || '').trim().toUpperCase() === p);
+  if(!match) match = activeContratosTable.find(([,,, nombre]) => (nombre || '').toUpperCase().includes(p));
+  if(!match) return { contrato: 'No definido', cuenta: '-', subcuenta: '-', nombreEmpresa: null, reconocido: false };
+  const [contrato, cuenta, subcuenta, nombreEmpresa] = match;
+  return { contrato, cuenta, subcuenta, nombreEmpresa, reconocido: true };
+}
+function esCuentaDGR(cuenta){
+  const dgo = ENTES_MAP[normalizeEnte('DGO')];
+  return !!(dgo && dgo.cuenta && String(cuenta).trim() === String(dgo.cuenta).trim());
+}
+function esEnteDGR(enteCode){
+  const n = normalizeEnte(String(enteCode || ''));
+  return n === 'DGO' || n === '29';
+}
+
+// ---- Tabla Ente -> Contrato / Descripción / Cuenta (archivo PR5) ----
+// Esta es la tabla por defecto. El Excel que se puede cargar más abajo
+// solo reemplaza las columnas Contrato y Cuenta (respetando el orden
+// de esta lista) — Ente y Descripción siempre vienen de acá.
+const ENTES_TABLE_DEFAULT = [
+  ['GI7','56','AGUA VILLA ZANJON','2187'],
+  ['FRI','57','UCSE BOLETAS SIN VIGENCIA','2186'],
+  ['353','100','HAMBURGO CÍA DE SEGURO','3365'],
+  ['ALV','104','AGUAS DE SANTIAGO','3378'],
+  ['55','105','SAT SAPEM','3377'],
+  ['60','106','EDET TUCUMÁN','3373'],
+  ['300','108','NATURGY NOA','3368'],
+  ['959','109','TARJETA SOL','3367'],
+  ['D31','110','Munic Sgo. Estero Recaudos con CB','3366'],
+  ['D21','111','TIC TELE IMAGEN CODIFICADA','3379'],
+  ['FRJ','114','COLEGIO HNO HERMAS BRUJIN','3437'],
+  ['FFV','115','SIND EMPL DE COMERCIO','3435'],
+  ['DUC','117','PARQUE DE LA PAZ','3429'],
+  ['GTR','118','AGUAS DE SUMAMPA','3428'],
+  ['321','121','VISA','3413'],
+  ['DJ2','137','MUNICIPALIDAD DE LA BANDA','3424'],
+  ['GIV','140','Mutual San Jorge','3420'],
+  ['FJI','141','SIN EMPL DE COMERCIO LA BANDA','3418'],
+  ['FNT','142','SIND EMPL DE COMERCIO FRIAS','3417'],
+  ['FEK','145','COLEGIO SAN FRANCISCO DE ASIS','3382'],
+  ['GHL','145','COLEGIO SAN FRANCISCO DE ASIS','3382'],
+  ['D54','146','Colegio San Pedro Nolasco','3383'],
+  ['FD1','162','Colegio Mater Dei','3403'],
+  ['337','177','EDESE SA','3470'],
+  ['FGX','246','BIG BEN','2179'],
+  ['DA3','300','JARDIN SHAMS','6219'],
+  ['FAC','301','C.P.C.E.S.E','6220'],
+  ['GCF','302','MUTUAL SANTIAGUEÑA','6221'],
+  ['FUJ','324','IOSEP SALUD BDP','2181'],
+  ['DGO','','DGR SANTIAGO DEL EST','3950'],
+];
+
+// El archivo completa códigos de ente cortos con cero a la izquierda
+// (ej. "55" llega como "055"), así que normalizamos quitando ceros
+// iniciales en códigos puramente numéricos antes de armar el mapa.
+function normalizeEnte(code){
+  const c = code.trim().toUpperCase();
+  return /^\d+$/.test(c) ? String(parseInt(c,10)) : c;
+}
+function buildEntesMap(table){
+  const map = {};
+  table.forEach(([ente,contrato,descripcion,cuenta]) => {
+    map[normalizeEnte(ente)] = { contrato, descripcion, cuenta };
+  });
+  return map;
+}
+
+// Estado activo (mutable): arranca con la tabla por defecto y se
+// reemplaza si se carga un Excel de Contratos/Cuentas.
+let activeEntesTable = ENTES_TABLE_DEFAULT.map(row => row.slice());
+let ENTES_MAP = buildEntesMap(activeEntesTable);
+
+function renderEntesPreview(table){
+  const defaultMap = buildEntesMap(ENTES_TABLE_DEFAULT);
+  let html = '<table><thead><tr><th>Ente</th><th>Descripción</th><th>Contrato</th><th>Cuenta</th></tr></thead><tbody>';
+  table.forEach(([ente,contrato,descripcion,cuenta]) => {
+    const def = defaultMap[normalizeEnte(ente)];
+    const contratoChanged = !def || def.contrato !== contrato;
+    const cuentaChanged = !def || def.cuenta !== cuenta;
+    const descripcionChanged = !def || def.descripcion !== descripcion;
+    html += `<tr>
+      <td class="mono">${ente}</td>
+      <td class="${descripcionChanged ? 'changed' : ''}">${descripcion}</td>
+      <td class="mono${contratoChanged ? ' changed' : ''}">${contrato || '—'}</td>
+      <td class="mono${cuentaChanged ? ' changed' : ''}">${cuenta || '—'}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  excelPreview.innerHTML = html;
+  excelPreview.style.display = 'block';
+}
+
+function reparseEntesSessions(){
+  sessions.forEach(s => {
+    const dependsOnEntes = s.config.kind === 'entes' || (s.config.kind === 'simple' && s.config.ente);
+    if(dependsOnEntes && s.rawText){
+      s.data = parseFile(s.rawText, s.config, s.fileName);
+    }
+  });
+  renderActive();
+}
+
+excelInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if(!file) return;
+  excelError.style.display = 'none';
+
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try{
+      const wb = XLSX.read(ev.target.result, { type:'array' });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { header:1, defval:'' });
+      if(!rows.length){ throw new Error('El archivo no tiene filas.'); }
+
+      const headerRow = rows[0].map(h => String(h).trim().toLowerCase());
+      const enteIdx = headerRow.findIndex(h => h === 'ente');
+      const contratoIdx = headerRow.findIndex(h => h === 'contrato');
+      const cuentaIdx = headerRow.findIndex(h => h === 'cuenta');
+      const descIdx = headerRow.findIndex(h => h === 'descripción del ente' || h === 'descripcion del ente' || h === 'descripción' || h === 'descripcion');
+      if(enteIdx === -1 || contratoIdx === -1 || cuentaIdx === -1 || descIdx === -1){
+        throw new Error('No encontré las 4 columnas "Ente", "Contrato", "Cuenta" y "Descripción del ente" en la primera fila del Excel.');
+      }
+
+      const dataRows = rows.slice(1)
+        .filter(r => String(r[enteIdx]).trim() !== '')
+        .map(r => ({
+          ente: String(r[enteIdx]).trim(),
+          contrato: String(r[contratoIdx]).trim(),
+          cuenta: String(r[cuentaIdx]).trim(),
+          descripcion: String(r[descIdx]).trim(),
+        }));
+
+      if(!dataRows.length){ throw new Error('El Excel no tiene filas de datos con un código de Ente.'); }
+
+      // Se arranca de la tabla activa actual (permite actualizaciones
+      // parciales/sucesivas) y se pisa/agrega por código de Ente.
+      const table = activeEntesTable.map(row => row.slice());
+      const indexByEnte = {};
+      table.forEach((row, i) => { indexByEnte[normalizeEnte(row[0])] = i; });
+
+      dataRows.forEach(r => {
+        const key = normalizeEnte(r.ente);
+        const newRow = [r.ente, r.contrato, r.descripcion, r.cuenta];
+        if(indexByEnte.hasOwnProperty(key)){
+          table[indexByEnte[key]] = newRow;
+        } else {
+          table.push(newRow);
+          indexByEnte[key] = table.length - 1;
+        }
+      });
+
+      activeEntesTable = table;
+      ENTES_MAP = buildEntesMap(activeEntesTable);
+      excelStatus.textContent = `Usando "${file.name}" (${dataRows.length} ente${dataRows.length === 1 ? '' : 's'} actualizado${dataRows.length === 1 ? '' : 's'} de ${activeEntesTable.length}).`;
+      renderEntesPreview(activeEntesTable);
+      reparseEntesSessions();
+      persistEntesTable();
+      excelConfirmNote.style.display = 'none';
+      excelConfirmRow.style.display = 'flex';
+    }catch(err){
+      excelError.style.display = 'block';
+      excelError.textContent = 'No se pudo procesar el Excel: ' + err.message;
+    }
+  };
+  reader.onerror = () => { excelError.style.display = 'block'; excelError.textContent = 'No se pudo leer el archivo Excel.'; };
+  reader.readAsArrayBuffer(file);
+});
+
+excelConfirmBtn.addEventListener('click', () => {
+  const count = activeEntesTable.length;
+  excelPreview.style.display = 'none';
+  excelPreview.innerHTML = '';
+  excelConfirmRow.style.display = 'none';
+  excelConfirmNote.style.display = 'block';
+  excelConfirmNote.textContent = `✓ Cambios aplicados y guardados (${count} entes).`;
+  excelBox.style.display = 'none';
+  excelToggle.textContent = '⚙ Actualizar tabla de Contratos y Cuentas';
+});
+
+restoreEntesBtn.addEventListener('click', () => {
+  activeEntesTable = ENTES_TABLE_DEFAULT.map(row => row.slice());
+  ENTES_MAP = buildEntesMap(activeEntesTable);
+  excelStatus.textContent = 'Usando la tabla por defecto (30 entes).';
+  excelError.style.display = 'none';
+  excelPreview.style.display = 'none';
+  excelPreview.innerHTML = '';
+  excelConfirmRow.style.display = 'none';
+  excelConfirmNote.style.display = 'none';
+  reparseEntesSessions();
+  persistEntesTable();
+});
+
+// =========================================================
+// Excel de Impuestos: actualiza Contrato/Cuenta/Subcuenta por
+// código de Impuesto (join por código, no por posición — admite
+// actualizar solo algunos códigos, sin traer los 30).
+// =========================================================
+function renderImpuestoPreview(table){
+  const defaultMap = buildImpuestoMap(IMPUESTO_TABLE_DEFAULT);
+  let html = '<table><thead><tr><th>Impuesto</th><th>Nombre</th><th>Contrato</th><th>Cuenta</th><th>Subcuenta</th></tr></thead><tbody>';
+  table.forEach(([impuesto,contrato,nombre,cuenta,subcuenta]) => {
+    const def = defaultMap[normalizeImpuesto(impuesto)];
+    const contratoChanged = !def || def.contrato !== contrato;
+    const cuentaChanged = !def || def.cuenta !== cuenta;
+    const subcuentaChanged = !def || def.subcuenta !== subcuenta;
+    html += `<tr>
+      <td class="mono">${impuesto}</td>
+      <td>${nombre}</td>
+      <td class="mono${contratoChanged ? ' changed' : ''}">${contrato}</td>
+      <td class="mono${cuentaChanged ? ' changed' : ''}">${cuenta || '—'}</td>
+      <td class="mono${subcuentaChanged ? ' changed' : ''}">${subcuenta || '—'}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  excelImpuestoPreview.innerHTML = html;
+  excelImpuestoPreview.style.display = 'block';
+}
+
+function reparseImpuestoSessions(){
+  sessions.forEach(s => {
+    const usesImpuesto = s.config.kind !== 'entes' && s.config.kind !== 'simple';
+    if(usesImpuesto && s.rawText){
+      s.data = parseFile(s.rawText, s.config, s.fileName);
+    }
+  });
+  renderActive();
+}
+
+excelImpuestoInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if(!file) return;
+  excelImpuestoError.style.display = 'none';
+
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try{
+      const wb = XLSX.read(ev.target.result, { type:'array' });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { header:1, defval:'' });
+      if(!rows.length){ throw new Error('El archivo no tiene filas.'); }
+
+      const headerRow = rows[0].map(h => String(h).trim().toLowerCase());
+      const contratoIdx = headerRow.findIndex(h => h === 'contrato');
+      const impuestoIdx = headerRow.findIndex(h => h === 'impuesto');
+      const cuentaIdx = headerRow.findIndex(h => h === 'cuenta');
+      const subcuentaIdx = headerRow.findIndex(h => h === 'subcuenta');
+      if(contratoIdx === -1 || impuestoIdx === -1 || cuentaIdx === -1 || subcuentaIdx === -1){
+        throw new Error('No encontré las 4 columnas "Contrato", "Impuesto", "Cuenta" y "Subcuenta" en la primera fila del Excel.');
+      }
+
+      const dataRows = rows.slice(1)
+        .filter(r => String(r[impuestoIdx]).trim() !== '')
+        .map(r => ({
+          impuesto: normalizeImpuesto(String(r[impuestoIdx])),
+          contrato: String(r[contratoIdx]).trim(),
+          cuenta: String(r[cuentaIdx]).trim(),
+          subcuenta: String(r[subcuentaIdx]).trim(),
+        }));
+
+      if(!dataRows.length){ throw new Error('El Excel no tiene filas de datos con un código de Impuesto.'); }
+
+      // Códigos agrupados (ej. 14/27): si el Excel solo trae uno del par,
+      // el otro se actualiza automáticamente con los mismos valores,
+      // salvo que el propio Excel ya traiga una fila explícita para él.
+      const explicitCodes = new Set(dataRows.map(r => r.impuesto));
+      const expandedRows = dataRows.slice();
+      dataRows.forEach(r => {
+        const siblings = IMPUESTO_GROUPS[r.impuesto] || [];
+        siblings.forEach(sib => {
+          if(sib !== r.impuesto && !explicitCodes.has(sib)){
+            expandedRows.push({ impuesto: sib, contrato: r.contrato, cuenta: r.cuenta, subcuenta: r.subcuenta });
+            explicitCodes.add(sib);
+          }
+        });
+      });
+
+      // Se arranca de la tabla activa actual (permite actualizaciones
+      // parciales/sucesivas) y se pisa/agrega por código de impuesto.
+      const table = activeImpuestoTable.map(row => row.slice());
+      const indexByCode = {};
+      table.forEach((row, i) => { indexByCode[normalizeImpuesto(row[0])] = i; });
+
+      expandedRows.forEach(r => {
+        const def = buildImpuestoMap(IMPUESTO_TABLE_DEFAULT)[r.impuesto];
+        const nombre = def ? def.nombre : `Impuesto ${r.impuesto} (agregado por Excel, sin descripción)`;
+        const newRow = [r.impuesto, r.contrato, nombre, r.cuenta, r.subcuenta];
+        if(indexByCode.hasOwnProperty(r.impuesto)){
+          table[indexByCode[r.impuesto]] = newRow;
+        } else {
+          table.push(newRow);
+          indexByCode[r.impuesto] = table.length - 1;
+        }
+      });
+
+      activeImpuestoTable = table;
+      IMPUESTO_MAP = buildImpuestoMap(activeImpuestoTable);
+      excelImpuestoStatus.textContent = `Usando "${file.name}" (${dataRows.length} código${dataRows.length === 1 ? '' : 's'} del Excel, ${expandedRows.length} actualizado${expandedRows.length === 1 ? '' : 's'} en total con hermanos de grupo, de ${activeImpuestoTable.length}).`;
+      renderImpuestoPreview(activeImpuestoTable);
+      reparseImpuestoSessions();
+      persistImpuestoTable();
+      excelImpuestoConfirmNote.style.display = 'none';
+      excelImpuestoConfirmRow.style.display = 'flex';
+    }catch(err){
+      excelImpuestoError.style.display = 'block';
+      excelImpuestoError.textContent = 'No se pudo procesar el Excel: ' + err.message;
+    }
+  };
+  reader.onerror = () => { excelImpuestoError.style.display = 'block'; excelImpuestoError.textContent = 'No se pudo leer el archivo Excel.'; };
+  reader.readAsArrayBuffer(file);
+});
+
+excelImpuestoConfirmBtn.addEventListener('click', () => {
+  const count = activeImpuestoTable.length;
+  excelImpuestoPreview.style.display = 'none';
+  excelImpuestoPreview.innerHTML = '';
+  excelImpuestoConfirmRow.style.display = 'none';
+  excelImpuestoConfirmNote.style.display = 'block';
+  excelImpuestoConfirmNote.textContent = `✓ Cambios aplicados y guardados (${count} códigos).`;
+  excelImpuestoBox.style.display = 'none';
+  excelImpuestoToggle.textContent = '⚙ Actualizar tabla de Impuestos';
+});
+
+restoreImpuestosBtn.addEventListener('click', () => {
+  activeImpuestoTable = IMPUESTO_TABLE_DEFAULT.map(row => row.slice());
+  IMPUESTO_MAP = buildImpuestoMap(activeImpuestoTable);
+  excelImpuestoStatus.textContent = 'Usando la tabla por defecto (30 códigos de impuesto).';
+  excelImpuestoError.style.display = 'none';
+  excelImpuestoPreview.style.display = 'none';
+  excelImpuestoPreview.innerHTML = '';
+  excelImpuestoConfirmRow.style.display = 'none';
+  excelImpuestoConfirmNote.style.display = 'none';
+  reparseImpuestoSessions();
+  persistImpuestoTable();
+});
+
+// =========================================================
+// Excel de la Tabla de Contratos: actualiza/agrega por número de
+// Cuenta (Contrato, Cuenta, Subcuenta, Nombre Empresa). Es la tabla
+// principal de entidades para el Ingreso Interactivo.
+// =========================================================
+function renderContratosPreview(table){
+  let html = '<table><thead><tr><th>Contrato</th><th>Cuenta</th><th>Subcuenta</th><th>Nombre Empresa</th></tr></thead><tbody>';
+  table.forEach(([contrato, cuenta, subcuenta, nombreEmpresa]) => {
+    html += `<tr>
+      <td class="mono">${contrato || '—'}</td>
+      <td class="mono">${cuenta}</td>
+      <td class="mono">${subcuenta || '—'}</td>
+      <td>${nombreEmpresa}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  excelContratosPreview.innerHTML = html;
+  excelContratosPreview.style.display = 'block';
+}
+
+excelContratosInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if(!file) return;
+  excelContratosError.style.display = 'none';
+
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try{
+      const wb = XLSX.read(ev.target.result, { type:'array' });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { header:1, defval:'' });
+      if(!rows.length){ throw new Error('El archivo no tiene filas.'); }
+
+      const headerRow = rows[0].map(h => String(h).trim().toLowerCase());
+      const contratoIdx = headerRow.findIndex(h => h === 'contrato');
+      const cuentaIdx = headerRow.findIndex(h => h === 'cuenta');
+      const subcuentaIdx = headerRow.findIndex(h => h === 'subcuenta');
+      const nombreIdx = headerRow.findIndex(h => h === 'nombre empresa' || h === 'nombreempresa');
+      if(contratoIdx === -1 || cuentaIdx === -1 || subcuentaIdx === -1 || nombreIdx === -1){
+        throw new Error('No encontré las 4 columnas "Contrato", "Cuenta", "Subcuenta" y "Nombre Empresa" en la primera fila del Excel.');
+      }
+
+      const dataRows = rows.slice(1)
+        .filter(r => String(r[cuentaIdx]).trim() !== '')
+        .map(r => ({
+          contrato: String(r[contratoIdx]).trim(),
+          cuenta: String(r[cuentaIdx]).trim(),
+          subcuenta: String(r[subcuentaIdx]).trim(),
+          nombreEmpresa: String(r[nombreIdx]).trim(),
+        }));
+
+      if(!dataRows.length){ throw new Error('El Excel no tiene filas de datos con un número de Cuenta.'); }
+
+      const table = activeContratosTable.map(row => row.slice());
+      const indexByCuenta = {};
+      table.forEach((row, i) => { indexByCuenta[String(row[1]).trim()] = i; });
+
+      dataRows.forEach(r => {
+        const newRow = [r.contrato, r.cuenta, r.subcuenta, r.nombreEmpresa];
+        if(indexByCuenta.hasOwnProperty(r.cuenta)){
+          table[indexByCuenta[r.cuenta]] = newRow;
+        } else {
+          table.push(newRow);
+          indexByCuenta[r.cuenta] = table.length - 1;
+        }
+      });
+
+      activeContratosTable = table;
+      CONTRATOS_MAP = buildContratosMap(activeContratosTable);
+      excelContratosStatus.textContent = `Usando "${file.name}" (${activeContratosTable.length} cuenta${activeContratosTable.length === 1 ? '' : 's'} cargada${activeContratosTable.length === 1 ? '' : 's'}).`;
+      renderContratosPreview(activeContratosTable);
+      persistContratosTable();
+      excelContratosConfirmNote.style.display = 'none';
+      excelContratosConfirmRow.style.display = 'flex';
+    }catch(err){
+      excelContratosError.style.display = 'block';
+      excelContratosError.textContent = 'No se pudo procesar el Excel: ' + err.message;
+    }
+  };
+  reader.onerror = () => { excelContratosError.style.display = 'block'; excelContratosError.textContent = 'No se pudo leer el archivo Excel.'; };
+  reader.readAsArrayBuffer(file);
+});
+
+excelContratosConfirmBtn.addEventListener('click', () => {
+  const count = activeContratosTable.length;
+  excelContratosPreview.style.display = 'none';
+  excelContratosPreview.innerHTML = '';
+  excelContratosConfirmRow.style.display = 'none';
+  excelContratosConfirmNote.style.display = 'block';
+  excelContratosConfirmNote.textContent = `✓ Cambios aplicados y guardados (${count} cuentas).`;
+  excelContratosBox.style.display = 'none';
+  excelContratosToggle.textContent = '⚙ Actualizar tabla de Contratos';
+});
+
+restoreContratosBtn.addEventListener('click', () => {
+  activeContratosTable = [];
+  CONTRATOS_MAP = {};
+  excelContratosStatus.textContent = 'Todavía no se cargó ninguna. Es la tabla principal para el Ingreso Interactivo.';
+  excelContratosError.style.display = 'none';
+  excelContratosPreview.style.display = 'none';
+  excelContratosPreview.innerHTML = '';
+  excelContratosConfirmRow.style.display = 'none';
+  excelContratosConfirmNote.style.display = 'none';
+  persistContratosTable();
+});
+
+// ---- Validación de fecha AAAAMMDD ----
+function fechaEsValida(str){
+  if(!/^\d{8}$/.test(str)) return false;
+  const y = parseInt(str.slice(0,4),10);
+  const m = parseInt(str.slice(4,6),10);
+  const d = parseInt(str.slice(6,8),10);
+  if(m < 1 || m > 12) return false;
+  if(d < 1 || d > 31) return false;
+  const dt = new Date(y, m - 1, d);
+  return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d;
+}
+
+function slice(line, start, len){
+  return (line.substring(start-1, start-1+len) || '').padEnd(len, ' ');
+}
+function segAt(line, posArr, cls){
+  return `<span class="seg ${cls}">${slice(line, posArr[0], posArr[1])}</span>`;
+}
+function fmtFecha(aaaammdd){
+  if(!/^\d{8}$/.test(aaaammdd)) return (aaaammdd || '').trim() || '—';
+  return `${aaaammdd.slice(6,8)}/${aaaammdd.slice(4,6)}/${aaaammdd.slice(0,4)}`;
+}
+function fmtMonto(n){
+  return n.toLocaleString('es-UY', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+// =========================================================
+// Parseo — archivos "impuestos" (0291 / 0DG0): cabecera + detalle
+// (líneas que arrancan con '1') + pie, código de barras con impuesto.
+// =========================================================
+function parseImpuestosFile(text, config){
+  const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+  if(lines.length < 2){
+    throw new Error('El archivo no tiene el mínimo de líneas esperado (cabecera + detalle).');
+  }
+  const header = lines[0];
+  const footer = lines[lines.length - 1];
+  const detailLines = lines.slice(1, lines.length - 1);
+  const d = config.detail;
+
+  const fechaRaw = config.header ? slice(header, config.header.datePos, config.header.dateLen).trim() : null;
+
+  const rows = [];
+  let montoValido = 0, validos = 0, invalidos = 0;
+
+  detailLines.forEach((line, idx) => {
+    if(line[0] !== '1') return;
+
+    const importeRaw = slice(line, d.importe[0], d.importe[1]);
+    const fechaPagoRaw = slice(line, d.fecha[0], d.fecha[1]);
+    const cb = slice(line, d.cbStart, d.cbLen);
+    const impuesto = slice(line, d.impuestoPos[0], d.impuestoPos[1]);
+
+    const isNumeric = /^\d+$/.test(importeRaw.trim());
+    const fechaOk = fechaEsValida(fechaPagoRaw.trim());
+    const info = lookupImpuesto(impuesto);
+    const valido = isNumeric && fechaOk && info.reconocido;
+    const monto = isNumeric ? parseInt(importeRaw,10) / 100 : null;
+
+    if(valido){ montoValido += monto; validos++; } else { invalidos++; }
+
+    rows.push({
+      lineNumber: idx + 2, raw: line, impuesto,
+      contrato: info.contrato, nombreImpuesto: info.nombre,
+      cuenta: info.cuenta, subcuenta: info.subcuenta,
+      cb: cb.trim(), montoRaw: importeRaw.trim(), monto,
+      fechaPago: fechaPagoRaw, fechaOk, valido
+    });
+  });
+
+  return { kind:'impuestos', fechaRaw, rows, montoValido, validos, invalidos, header, footer };
+}
+
+function highlightImpuestos(line, config){
+  const d = config.detail;
+  let out = '';
+  out += slice(line,1,1);
+  out += segAt(line, d.idDeuda, 'seg-deuda');
+  out += segAt(line, d.idConcepto, 'seg-concepto');
+  out += segAt(line, d.idUsuario, 'seg-usuario');
+  out += segAt(line, d.importe, 'seg-importe');
+  out += segAt(line, d.fecha, 'seg-fecha');
+  const discStart = d.discrecional[0], discEnd = d.discrecional[0] + d.discrecional[1];
+  const cbStart = d.cbStart, cbEnd = d.cbStart + d.cbLen;
+  const [impStart, impLen] = d.impuestoPos;
+  const impEnd = impStart + impLen;
+  if(cbStart > discStart) out += slice(line, discStart, cbStart - discStart);
+  if(impStart > cbStart) out += segAt(line, [cbStart, impStart - cbStart], 'seg-cb');
+  out += segAt(line, [impStart, impLen], 'seg-impuesto');
+  if(impEnd < cbEnd) out += segAt(line, [impEnd, cbEnd - impEnd], 'seg-cb');
+  if(cbEnd < discEnd) out += slice(line, cbEnd, discEnd - cbEnd);
+  return out;
+}
+
+// =========================================================
+// Parseo — archivo "entes" (PR5): sin cabecera/pie, sin código de
+// barras, montos con signo, fecha tomada del nombre del archivo.
+// =========================================================
+function parseFechaDesdeNombre(fileName){
+  const base = fileName.replace(/\.[^.]+$/, '');
+  const m = base.match(/(\d{2})(\d{2})$/);
+  if(!m) return { display:null, warning:`No se pudo interpretar la fecha a partir del nombre del archivo ("${fileName}"). Se esperan los últimos 4 dígitos como MMDD, por ejemplo PR50804.` };
+  const mm = parseInt(m[1],10), dd = parseInt(m[2],10);
+  const year = new Date().getFullYear();
+  const dt = new Date(year, mm - 1, dd);
+  if(mm < 1 || mm > 12 || dd < 1 || dd > 31 || dt.getMonth() !== mm - 1 || dt.getDate() !== dd){
+    return { display:null, warning:`El nombre del archivo ("${fileName}") no contiene una fecha MMDD válida al final.` };
+  }
+  const pad = n => String(n).padStart(2,'0');
+  return { display: `${pad(dd)}/${pad(mm)}/${year}`, warning:null };
+}
+
+function readUnsigned(line, pos){
+  const raw = slice(line, pos[0], pos[1]).trim();
+  const ok = /^\d+$/.test(raw);
+  return { ok, value: ok ? parseInt(raw,10)/100 : null, raw };
+}
+function readSigned(line, signPos, amtPos){
+  const signChar = slice(line, signPos[0], signPos[1]).trim();
+  const raw = slice(line, amtPos[0], amtPos[1]).trim();
+  const digitsOk = /^\d+$/.test(raw);
+  const signOk = signChar === '+' || signChar === '-';
+  const ok = digitsOk && signOk;
+  const value = digitsOk ? (signChar === '-' ? -1 : 1) * parseInt(raw,10)/100 : null;
+  return { ok, value, raw, sign: signChar };
+}
+
+function parseEntesFile(text, config, fileName){
+  const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+  if(lines.length < 1){
+    throw new Error('El archivo no contiene líneas de datos.');
+  }
+  const d = config.detail;
+  const rows = [];
+  let validos = 0, invalidos = 0;
+
+  lines.forEach((line, idx) => {
+    const enteRaw = slice(line, d.ente[0], d.ente[1]).trim();
+    if(!enteRaw) return;
+
+    const denominacionArchivo = slice(line, d.denominacion[0], d.denominacion[1]).trim();
+    const cantidad = readUnsigned(line, d.cantidad);
+    const importe = readUnsigned(line, d.importe);
+    const ajuste = readSigned(line, d.signoAjuste, d.ajuste);
+    const comisionEmisores = readUnsigned(line, d.comisionEmisores);
+    const comisionAdherente = readSigned(line, d.signoComisionAdherente, d.comisionAdherente);
+    const ivaComEmisores = readUnsigned(line, d.ivaComisionEmisores);
+    const ivaComAdherente = readSigned(line, d.signoIvaComisionAdherente, d.ivaComisionAdherente);
+    const percepcion = readUnsigned(line, d.percepcion);
+    const retIva = readUnsigned(line, d.retencionesIVA);
+    const retGan = readUnsigned(line, d.retencionesGanancias);
+    const retIIBB = readUnsigned(line, d.retencionesIIBB);
+    const neto = readSigned(line, d.signoNeto, d.neto);
+
+    const enteInfo = ENTES_MAP[normalizeEnte(enteRaw)];
+    const enteOk = !!enteInfo;
+    const camposOk = [cantidad, importe, ajuste, comisionEmisores, comisionAdherente,
+                       ivaComEmisores, ivaComAdherente, percepcion, retIva, retGan, retIIBB, neto]
+                      .every(c => c.ok);
+    const valido = enteOk && camposOk;
+    if(valido) validos++; else invalidos++;
+
+    rows.push({
+      lineNumber: idx + 1, raw: line, ente: enteRaw,
+      contrato: enteInfo ? enteInfo.contrato : 'No definido',
+      descripcion: enteInfo ? enteInfo.descripcion : `Ente no reconocido (${enteRaw})`,
+      cuenta: enteInfo ? enteInfo.cuenta : '—',
+      importe, neto, comisionEmisores, ivaComEmisores, comisionAdherente, ivaComAdherente,
+      percepcion, retIva, retGan, retIIBB,
+      enteOk, valido
+    });
+  });
+
+  const fechaInfo = parseFechaDesdeNombre(fileName);
+  return { kind:'entes', fechaRaw: fechaInfo.display, fechaWarning: fechaInfo.warning, rows, validos, invalidos };
+}
+
+function fmtCell(entry, signed){
+  if(!entry.ok) return (entry.raw || '—') + ' ⚠';
+  if(signed) return (entry.value < 0 ? '-' : '') + fmtMonto(Math.abs(entry.value));
+  return fmtMonto(entry.value);
+}
+
+function highlightEntes(line, config){
+  const d = config.detail;
+  let out = '';
+  out += segAt(line, d.ente, 'seg-deuda');
+  out += segAt(line, d.denominacion, 'seg-concepto');
+  out += slice(line, d.cantidad[0], d.cantidad[1]);
+  out += slice(line, d.importe[0], d.importe[1]);
+  out += slice(line, d.signoAjuste[0], d.signoAjuste[1] + d.ajuste[1]);
+  out += slice(line, d.adherido[0], d.adherido[1]);
+  out += segAt(line, d.comisionEmisores, 'seg-usuario');
+  out += segAt(line, [d.signoComisionAdherente[0], d.signoComisionAdherente[1] + d.comisionAdherente[1]], 'seg-importe');
+  out += segAt(line, d.ivaComisionEmisores, 'seg-usuario');
+  out += segAt(line, [d.signoIvaComisionAdherente[0], d.signoIvaComisionAdherente[1] + d.ivaComisionAdherente[1]], 'seg-importe');
+  out += segAt(line, d.percepcion, 'seg-usuario');
+  out += segAt(line, d.retencionesIVA, 'seg-usuario');
+  out += segAt(line, d.retencionesGanancias, 'seg-usuario');
+  out += segAt(line, d.retencionesIIBB, 'seg-usuario');
+  out += segAt(line, [d.signoNeto[0], d.signoNeto[1] + d.neto[1]], 'seg-fecha');
+  return out;
+}
+
+// =========================================================
+// Parseo — archivo "Débito por CBU": sin cabecera/pie (todas las
+// líneas son detalle), CBU debe empezar con 321 y ser numérico,
+// impuesto contra la misma lista de 0291/0DG0, y la fecha de pago
+// se toma del nombre del archivo (no del campo Fecha del registro).
+// =========================================================
+function parseFechaDesdeNombreCBU(fileName, fileDateCfg){
+  const base = fileName.replace(/\.[^.]+$/, '');
+  const datePart = base.substring(fileDateCfg.pos - 1, fileDateCfg.pos - 1 + fileDateCfg.len);
+  if(!fechaEsValida(datePart)){
+    return { raw:null, warning:`No se pudo interpretar una fecha válida en las posiciones ${fileDateCfg.pos}-${fileDateCfg.pos + fileDateCfg.len - 1} del nombre del archivo ("${fileName}").` };
+  }
+  return { raw: datePart, warning:null };
+}
+
+function parseCbuFile(text, config, fileName){
+  const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+  if(lines.length < 1){
+    throw new Error('El archivo no contiene líneas de datos.');
+  }
+  const d = config.detail;
+  const rows = [];
+  let montoValido = 0, validos = 0, invalidos = 0;
+
+  const fechaInfo = parseFechaDesdeNombreCBU(fileName, config.fileDate);
+
+  lines.forEach((line, idx) => {
+    const cbuRaw = slice(line, d.cbu[0], d.cbu[1]).trim();
+    if(!cbuRaw) return;
+
+    const impuesto = slice(line, d.impuesto[0], d.impuesto[1]);
+    const importeRaw = slice(line, d.importe[0], d.importe[1]).trim();
+
+    const cbuNumeric = /^\d+$/.test(cbuRaw);
+    const cbuOk = cbuNumeric && cbuRaw.startsWith('321');
+    // El importe de este archivo viene con punto decimal explícito
+    // (ej. "000098137.13"), a diferencia de 0291/0DG0/PR5 que usan
+    // 2 decimales implícitos sin separador.
+    const isNumeric = /^\d+\.\d{1,2}$/.test(importeRaw);
+    const info = lookupImpuesto(impuesto);
+    const valido = cbuOk && isNumeric && info.reconocido;
+    const monto = isNumeric ? parseFloat(importeRaw) : null;
+
+    if(valido){ montoValido += monto; validos++; } else { invalidos++; }
+
+    rows.push({
+      lineNumber: idx + 1, raw: line,
+      cbu: cbuRaw, cbuOk,
+      impuesto, contrato: info.contrato, nombreImpuesto: info.nombre,
+      cuenta: info.cuenta, subcuenta: info.subcuenta,
+      montoRaw: importeRaw.trim(), monto,
+      valido
+    });
+  });
+
+  return { kind:'cbu', fechaRaw: fechaInfo.raw, fechaWarning: fechaInfo.warning, rows, montoValido, validos, invalidos };
+}
+
+function highlightCbu(line, config){
+  const d = config.detail;
+  const cbuEnd = d.cbu[0] + d.cbu[1];
+  const impEnd = d.impuesto[0] + d.impuesto[1];
+  let out = '';
+  out += segAt(line, d.cbu, 'seg-deuda');
+  if(d.impuesto[0] > cbuEnd) out += slice(line, cbuEnd, d.impuesto[0] - cbuEnd);
+  out += segAt(line, d.impuesto, 'seg-impuesto');
+  if(d.importe[0] > impEnd) out += slice(line, impEnd, d.importe[0] - impEnd);
+  out += segAt(line, d.importe, 'seg-importe');
+  return out;
+}
+
+// =========================================================
+// Parseo — archivos "simple" (ALV): cabecera + detalle (líneas '1')
+// + totalizador (se ignora), sin impuesto ni código de barras.
+// =========================================================
+function parseSimpleFile(text, config){
+  const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+  if(lines.length < 2){
+    throw new Error('El archivo no tiene el mínimo de líneas esperado (cabecera + detalle).');
+  }
+  const header = lines[0];
+  const footer = lines[lines.length - 1]; // totalizador: no se usa
+  const detailLines = lines.slice(1, lines.length - 1);
+  const d = config.detail;
+
+  const fechaRaw = config.header ? slice(header, config.header.datePos, config.header.dateLen).trim() : null;
+  const enteInfo = config.ente ? ENTES_MAP[normalizeEnte(config.ente)] : null;
+  const contrato = enteInfo ? enteInfo.contrato : 'No definido';
+  const cuenta = enteInfo ? enteInfo.cuenta : '—';
+  const nombreEmpresa = enteInfo ? enteInfo.descripcion : config.ente;
+
+  const rows = [];
+  let montoValido = 0, validos = 0, invalidos = 0;
+
+  detailLines.forEach((line, idx) => {
+    if(line[0] !== '1') return;
+
+    const importeRaw = slice(line, d.importe[0], d.importe[1]);
+    const fechaPagoRaw = slice(line, d.fecha[0], d.fecha[1]);
+
+    const isNumeric = /^\d+$/.test(importeRaw.trim());
+    const fechaOk = fechaEsValida(fechaPagoRaw.trim());
+    const valido = isNumeric && fechaOk;
+    const monto = isNumeric ? parseInt(importeRaw,10) / 100 : null;
+
+    if(valido){ montoValido += monto; validos++; } else { invalidos++; }
+
+    rows.push({
+      lineNumber: idx + 2, raw: line,
+      montoRaw: importeRaw.trim(), monto,
+      fechaPago: fechaPagoRaw, fechaOk, valido
+    });
+  });
+
+  return { kind:'simple', fechaRaw, rows, montoValido, validos, invalidos, header, footer, contrato, cuenta, nombreEmpresa };
+}
+
+function highlightSimple(line, config){
+  const d = config.detail;
+  let out = '';
+  if(d.importe[0] > 1) out += slice(line, 1, d.importe[0] - 1);
+  out += segAt(line, d.importe, 'seg-importe');
+  const afterImporte = d.importe[0] + d.importe[1];
+  if(d.fecha[0] > afterImporte) out += slice(line, afterImporte, d.fecha[0] - afterImporte);
+  out += segAt(line, d.fecha, 'seg-fecha');
+  const afterFecha = d.fecha[0] + d.fecha[1];
+  const remainderLen = line.length - (afterFecha - 1);
+  if(remainderLen > 0) out += slice(line, afterFecha, remainderLen);
+  return out;
+}
+
+// =========================================================
+// Parseo — archivo "GIRE Nuevo" (Rapipago): 3 entidades con el
+// mismo formato de registro, diferenciadas por la extensión del
+// archivo (.6091/.6105/.6096). Solo .6105 (DGR) trae impuesto.
+// Fecha del archivo desde el nombre (posición 3, largo 6, AAMMDD).
+// =========================================================
+function parseGireFile(text, config, fileName){
+  const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+  if(lines.length < 2){
+    throw new Error('El archivo no tiene el mínimo de líneas esperado (cabecera + detalle).');
+  }
+
+  const extMatch = fileName.match(/\.(\d+)\s*$/);
+  const ext = extMatch ? extMatch[1] : null;
+  const variant = ext ? config.variants[ext] : null;
+  if(!variant){
+    throw new Error(`No reconozco la extensión del archivo ("${fileName}"). Debe ser .6091, .6105 o .6096.`);
+  }
+
+  const fc = config.fileDate;
+  const datePart = fileName.substring(fc.pos - 1, fc.pos - 1 + fc.len);
+  let fechaRaw = null, fechaWarning = null;
+  if(/^\d{6}$/.test(datePart)){
+    const full = `20${datePart}`; // AAMMDD -> AAAAMMDD
+    if(fechaEsValida(full)) fechaRaw = full;
+    else fechaWarning = `El nombre del archivo ("${fileName}") no contiene una fecha AAMMDD válida en las posiciones ${fc.pos}-${fc.pos + fc.len - 1}.`;
+  } else {
+    fechaWarning = `No se pudo interpretar la fecha en las posiciones ${fc.pos}-${fc.pos + fc.len - 1} del nombre del archivo ("${fileName}").`;
+  }
+
+  const header = lines[0];
+  const footer = lines[lines.length - 1];
+  const detailLines = lines.slice(1, lines.length - 1);
+  const d = config.detail;
+
+  const rows = [];
+  let montoValido = 0, validos = 0, invalidos = 0;
+
+  detailLines.forEach((line, idx) => {
+    const fechaPagoRaw = slice(line, d.fecha[0], d.fecha[1]);
+    const importeRaw = slice(line, d.importe[0], d.importe[1]);
+    const cb = slice(line, d.cbStart, variant.cbLen).trim();
+
+    const isNumeric = /^\d+$/.test(importeRaw.trim());
+    const fechaOk = fechaEsValida(fechaPagoRaw.trim());
+
+    let impuesto = null, contrato = null, nombreImpuesto = null, cuenta = null, subcuenta = null, impuestoOk = true;
+    if(variant.impuestos){
+      impuesto = slice(line, d.impuestoPos[0], d.impuestoPos[1]);
+      const info = lookupImpuesto(impuesto);
+      contrato = info.contrato; nombreImpuesto = info.nombre;
+      cuenta = info.cuenta; subcuenta = info.subcuenta;
+      impuestoOk = info.reconocido;
+    }
+
+    const valido = isNumeric && fechaOk && impuestoOk;
+    const monto = isNumeric ? parseInt(importeRaw,10) / 100 : null;
+    if(valido){ montoValido += monto; validos++; } else { invalidos++; }
+
+    rows.push({
+      lineNumber: idx + 1, raw: line,
+      fechaPago: fechaPagoRaw, fechaOk,
+      montoRaw: importeRaw.trim(), monto,
+      cb, impuesto, contrato, nombreImpuesto, cuenta, subcuenta,
+      valido
+    });
+  });
+
+  return {
+    kind:'gire', fechaRaw, fechaWarning, rows, montoValido, validos, invalidos,
+    header, footer, ext, entidad: variant.entidad, hasImpuestos: variant.impuestos, cbLen: variant.cbLen
+  };
+}
+
+function highlightGire(line, data, config){
+  const d = config.detail;
+  let out = '';
+  out += segAt(line, d.fecha, 'seg-fecha');
+  out += segAt(line, d.importe, 'seg-importe');
+  const importeEnd = d.importe[0] + d.importe[1];
+  const cbStart = d.cbStart, cbEnd = cbStart + data.cbLen;
+  if(cbStart > importeEnd) out += slice(line, importeEnd, cbStart - importeEnd);
+  if(data.hasImpuestos){
+    const [impStart, impLen] = d.impuestoPos;
+    const impEnd = impStart + impLen;
+    if(impStart > cbStart) out += segAt(line, [cbStart, impStart - cbStart], 'seg-cb');
+    out += segAt(line, [impStart, impLen], 'seg-impuesto');
+    if(impEnd < cbEnd) out += segAt(line, [impEnd, cbEnd - impEnd], 'seg-cb');
+  } else {
+    out += segAt(line, [cbStart, data.cbLen], 'seg-cb');
+  }
+  return out;
+}
+
+// =========================================================
+// Parseo — "GIRE Viejo BDP": archivo DELIMITADO (no de ancho fijo),
+// 20 columnas, cabezal en la línea 1. Se diferencia por el prefijo
+// numérico del nombre (251-256). Solo se cargan líneas con
+// GS_ESTATUS = "APROBADA"; las demás se cuentan pero no se muestran.
+// =========================================================
+function detectDelimiter(headerLine, expectedCols){
+  const candidates = [';', '|', '\t', ','];
+  for(const d of candidates){
+    if(headerLine.split(d).length === expectedCols) return d;
+  }
+  let best = null, bestCount = 1;
+  candidates.forEach(d => {
+    const c = headerLine.split(d).length;
+    if(c > bestCount){ bestCount = c; best = d; }
+  });
+  return best;
+}
+
+function parseBdpFile(text, config, fileName){
+  const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+  if(lines.length < 2){
+    throw new Error('El archivo no tiene el mínimo de líneas esperado (cabezal + detalle).');
+  }
+
+  const prefixMatch = fileName.match(/^(\d+)_/);
+  const prefix = prefixMatch ? prefixMatch[1] : null;
+  const variant = prefix ? config.variants[prefix] : null;
+  if(!variant){
+    throw new Error(`No reconozco el prefijo del archivo ("${fileName}"). Debe empezar con 251_, 252_, 253_, 254_, 255_ o 256_.`);
+  }
+
+  const fc = config.fileDate;
+  const datePart = fileName.substring(fc.pos - 1, fc.pos - 1 + fc.len);
+  let fechaRaw = null, fechaWarning = null;
+  if(/^\d{6}$/.test(datePart)){
+    const dd = datePart.slice(0,2), mm = datePart.slice(2,4), yy = datePart.slice(4,6);
+    const full = `20${yy}${mm}${dd}`;
+    if(fechaEsValida(full)) fechaRaw = full;
+    else fechaWarning = `El nombre del archivo ("${fileName}") no contiene una fecha DDMMAA válida en las posiciones ${fc.pos}-${fc.pos + fc.len - 1}.`;
+  } else {
+    fechaWarning = `No se pudo interpretar la fecha en las posiciones ${fc.pos}-${fc.pos + fc.len - 1} del nombre del archivo ("${fileName}").`;
+  }
+
+  const header = lines[0];
+  const delimiter = detectDelimiter(header, 20);
+  if(!delimiter){
+    throw new Error('No pude determinar el separador de columnas de este archivo (probé ";", "|", tabulador y ","). Decime cuál es y lo ajusto.');
+  }
+
+  const detailLines = lines.slice(1);
+  const c = config.cols;
+  const rows = [];
+  let aprobadas = 0, rechazadas = 0, montoValido = 0, validos = 0, invalidos = 0;
+
+  detailLines.forEach((line, idx) => {
+    if(!line.trim()) return;
+    const cols = line.split(delimiter);
+    const importeRaw = (cols[c.importe] || '').trim();
+    const moneda = (cols[c.moneda] || '').trim();
+    const fechaOpRaw = (cols[c.fechaOperacion] || '').trim();
+    const estatusRaw = (cols[c.estatus] || '').trim();
+    const ref01 = (cols[c.ref01] || '').trim();
+
+    const isAprobada = estatusRaw.toUpperCase() === 'APROBADA';
+    if(!isAprobada){ rechazadas++; return; } // no se ingresa al dash
+    aprobadas++;
+
+    const isNumeric = /^\d+,\d{1,2}$/.test(importeRaw);
+    const monto = isNumeric ? parseFloat(importeRaw.replace(',', '.')) : null;
+    const fechaDigits = fechaOpRaw.replace(/-/g, '');
+    const fechaOk = /^\d{4}-\d{2}-\d{2}$/.test(fechaOpRaw) && fechaEsValida(fechaDigits);
+
+    let impuesto = null, contrato = null, nombreImpuesto = null, cuenta = null, subcuenta = null, impuestoOk = true, cb = null;
+    if(variant.impuestos){
+      cb = ref01;
+      impuesto = ref01.substring(config.impuestoOffsetInRef01, config.impuestoOffsetInRef01 + config.impuestoLenInRef01);
+      const info = lookupImpuesto(impuesto);
+      contrato = info.contrato; nombreImpuesto = info.nombre;
+      cuenta = info.cuenta; subcuenta = info.subcuenta;
+      impuestoOk = info.reconocido;
+    }
+
+    const valido = isNumeric && fechaOk && impuestoOk;
+    if(valido){ montoValido += monto; validos++; } else { invalidos++; }
+
+    rows.push({
+      lineNumber: idx + 1, raw: line,
+      montoRaw: importeRaw, monto, moneda,
+      fechaPago: fechaDigits, fechaPagoDisplay: fechaOpRaw, fechaOk,
+      estatus: estatusRaw,
+      cb, impuesto, contrato, nombreImpuesto, cuenta, subcuenta,
+      valido
+    });
+  });
+
+  return {
+    kind:'bdp', fechaRaw, fechaWarning, rows, montoValido, validos, invalidos,
+    aprobadas, rechazadas, entidad: variant.label, hasImpuestos: variant.impuestos,
+    delimiter, header
+  };
+}
+
+// =========================================================
+// Parseo genérico: elige la función según el "kind" del tipo.
+// =========================================================
+function parseFile(text, config, fileName){
+  if(config.kind === 'entes') return parseEntesFile(text, config, fileName);
+  if(config.kind === 'cbu') return parseCbuFile(text, config, fileName);
+  if(config.kind === 'simple') return parseSimpleFile(text, config);
+  if(config.kind === 'gire') return parseGireFile(text, config, fileName);
+  if(config.kind === 'bdp') return parseBdpFile(text, config, fileName);
+  return parseImpuestosFile(text, config);
+}
+
+// =========================================================
+// Estado de sesión: cada archivo cargado queda como pestaña.
+// Se guarda en el almacenamiento del navegador (solo vos lo ves)
+// para que, si volvés a abrir esta pantalla, no tengas que volver
+// a cargar todo. "Vaciar todo el historial" borra ese guardado.
+// =========================================================
+let sessions = [];
+let activeId = null;
+
+const hasStorage = typeof window !== 'undefined' && !!window.storage;
+async function storageSet(key, value){
+  if(!hasStorage) return;
+  try{ await window.storage.set(key, value, false); }catch(e){ /* best effort */ }
+}
+async function storageGet(key){
+  if(!hasStorage) return null;
+  try{ return await window.storage.get(key, false); }catch(e){ return null; }
+}
+async function storageDelete(key){
+  if(!hasStorage) return;
+  try{ await window.storage.delete(key, false); }catch(e){ /* best effort */ }
+}
+
+function persistEntesTable(){ storageSet('impuestos-app:entesTable', JSON.stringify(activeEntesTable)); }
+function persistImpuestoTable(){ storageSet('impuestos-app:impuestoTable', JSON.stringify(activeImpuestoTable)); }
+function persistContratosTable(){ storageSet('impuestos-app:contratosTable', JSON.stringify(activeContratosTable)); }
+function persistSessions(){
+  const minimal = sessions.map(s => {
+    if(s.tipoId === 'MANUAL'){
+      return { id:s.id, tipoId:s.tipoId, tipoLabel:s.tipoLabel, fileName:s.fileName, manualRows:s.data.rows };
+    }
+    return { id:s.id, tipoId:s.tipoId, tipoLabel:s.tipoLabel, fileName:s.fileName, rawText:s.rawText };
+  });
+  storageSet('impuestos-app:sessions', JSON.stringify(minimal));
+  storageSet('impuestos-app:activeId', JSON.stringify(activeId));
+}
+
+async function loadPersistedState(){
+  if(!hasStorage) return;
+
+  const entesRes = await storageGet('impuestos-app:entesTable');
+  if(entesRes && entesRes.value){
+    try{
+      activeEntesTable = JSON.parse(entesRes.value);
+      ENTES_MAP = buildEntesMap(activeEntesTable);
+      if(JSON.stringify(activeEntesTable) !== JSON.stringify(ENTES_TABLE_DEFAULT)){
+        excelStatus.textContent = `Usando la tabla guardada de tu sesión anterior (${activeEntesTable.length} entes).`;
+      }
+    }catch(e){ /* ignore */ }
+  }
+
+  const impRes = await storageGet('impuestos-app:impuestoTable');
+  if(impRes && impRes.value){
+    try{
+      activeImpuestoTable = JSON.parse(impRes.value);
+      IMPUESTO_MAP = buildImpuestoMap(activeImpuestoTable);
+      if(JSON.stringify(activeImpuestoTable) !== JSON.stringify(IMPUESTO_TABLE_DEFAULT)){
+        excelImpuestoStatus.textContent = `Usando la tabla guardada de tu sesión anterior (${activeImpuestoTable.length} códigos).`;
+      }
+    }catch(e){ /* ignore */ }
+  }
+
+  const contRes = await storageGet('impuestos-app:contratosTable');
+  if(contRes && contRes.value){
+    try{
+      activeContratosTable = JSON.parse(contRes.value);
+      CONTRATOS_MAP = buildContratosMap(activeContratosTable);
+      if(activeContratosTable.length){
+        excelContratosStatus.textContent = `Usando la tabla guardada de tu sesión anterior (${activeContratosTable.length} cuentas).`;
+      }
+    }catch(e){ /* ignore */ }
+  }
+
+  const sessRes = await storageGet('impuestos-app:sessions');
+  if(sessRes && sessRes.value){
+    try{
+      const minimal = JSON.parse(sessRes.value);
+      sessions = minimal.map(m => {
+        const config = CONFIGS[m.tipoId];
+        if(!config) return null;
+        if(m.tipoId === 'MANUAL'){
+          return { id:m.id, tipoId:m.tipoId, tipoLabel:m.tipoLabel, fileName:m.fileName, config, data:{ kind:'manual', rows: m.manualRows || [] }, rawText:null };
+        }
+        try{
+          const data = parseFile(m.rawText, config, m.fileName);
+          return { id:m.id, tipoId:m.tipoId, tipoLabel:m.tipoLabel, fileName:m.fileName, config, data, rawText:m.rawText };
+        }catch(e){ return null; }
+      }).filter(Boolean);
+    }catch(e){ /* ignore */ }
+  }
+
+  const activeRes = await storageGet('impuestos-app:activeId');
+  if(activeRes && activeRes.value){
+    try{ activeId = JSON.parse(activeRes.value); }catch(e){ /* ignore */ }
+  }
+  if(!sessions.find(s => s.id === activeId)){
+    activeId = sessions.length ? sessions[sessions.length - 1].id : null;
+  }
+
+  renderTabs();
+  renderActive();
+}
+
+function currentTipoConfig(){
+  const tipoId = tipoSelect.value;
+  return { tipoId, config: CONFIGS[tipoId] || null };
+}
+
+function populateTipoSelect(){
+  FILE_TYPES.forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t.id;
+    opt.textContent = t.label + (CONFIGS[t.id] ? '' : ' (estructura pendiente)');
+    tipoSelect.appendChild(opt);
+  });
+}
+populateTipoSelect();
+
+function updateTipoUI(){
+  const { tipoId, config } = currentTipoConfig();
+  errorBanner.style.display = 'none';
+  if(!tipoId){ tipoNote.textContent = ''; slot.classList.add('disabled'); manualPanel.style.display = 'none'; slot.style.display = ''; filenameEl.style.display=''; return; }
+  const label = FILE_TYPES.find(t => t.id === tipoId).label;
+
+  if(tipoId === 'MANUAL'){
+    tipoNote.classList.remove('pending');
+    tipoNote.textContent = `Formato "${label}" listo — completá el formulario de abajo. Cada registro que confirmes se va agregando a la pestaña "Ingreso Interactivo".`;
+    slot.style.display = 'none';
+    filenameEl.style.display = 'none';
+    manualPanel.style.display = 'block';
+    return;
+  }
+  slot.style.display = '';
+  filenameEl.style.display = '';
+  manualPanel.style.display = 'none';
+
+  if(config){
+    tipoNote.classList.remove('pending');
+    tipoNote.textContent = `Formato "${label}" listo para procesar.`;
+    slot.classList.remove('disabled');
+  } else {
+    tipoNote.classList.add('pending');
+    tipoNote.textContent = `Todavía no definimos la estructura de "${label}". Pasámela cuando la tengas y la sumamos — por ahora no se puede cargar este tipo.`;
+    slot.classList.add('disabled');
+  }
+}
+tipoSelect.addEventListener('change', updateTipoUI);
+updateTipoUI();
+
+function handleFile(file){
+  const { tipoId, config } = currentTipoConfig();
+  if(!tipoId){ errorBanner.style.display = 'block'; errorBanner.textContent = 'Elegí primero el tipo de archivo antes de cargarlo.'; return; }
+  if(!config){ errorBanner.style.display = 'block'; errorBanner.textContent = 'Este tipo de archivo todavía no tiene una estructura definida.'; return; }
+
+  filenameEl.textContent = file.name;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try{
+      const rawText = e.target.result;
+      const data = parseFile(rawText, config, file.name);
+      const session = {
+        id: Date.now() + '-' + Math.random().toString(36).slice(2,7),
+        tipoId, tipoLabel: FILE_TYPES.find(t => t.id === tipoId).label,
+        fileName: file.name, config, data, rawText
+      };
+      sessions.push(session);
+      activeId = session.id;
+      errorBanner.style.display = 'none';
+      renderTabs();
+      renderActive();
+      persistSessions();
+    }catch(err){
+      errorBanner.style.display = 'block';
+      errorBanner.textContent = 'No se pudo procesar el archivo: ' + err.message;
+    }
+  };
+  reader.onerror = () => { errorBanner.style.display = 'block'; errorBanner.textContent = 'No se pudo leer el archivo.'; };
+  reader.readAsText(file, 'utf-8');
+}
+
+function renderTabs(){
+  tabsList.innerHTML = '';
+  if(sessions.length === 0){ tabsBar.style.display = 'none'; return; }
+  tabsBar.style.display = 'flex';
+  sessions.forEach(s => {
+    const tab = document.createElement('div');
+    tab.className = 'tab' + (s.id === activeId ? ' active' : '');
+    let label;
+    if(s.tipoId === 'MANUAL'){
+      const n = s.data.rows.length;
+      label = `Ingreso Interactivo (${n} registro${n === 1 ? '' : 's'})`;
+    } else if(s.data && s.data.entidad){
+      label = `${s.tipoLabel} · ${s.fileName} (${s.data.entidad})`;
+    } else {
+      label = `${s.tipoLabel} · ${s.fileName}`;
+    }
+    tab.innerHTML = `<span>${label}</span><span class="x" title="Quitar esta carga">✕</span>`;
+    tab.querySelector('span:first-child').addEventListener('click', () => { activeId = s.id; renderTabs(); renderActive(); persistSessions(); });
+    tab.querySelector('.x').addEventListener('click', (ev) => { ev.stopPropagation(); removeSession(s.id); });
+    tabsList.appendChild(tab);
+  });
+}
+
+function removeSession(id){
+  sessions = sessions.filter(s => s.id !== id);
+  if(activeId === id) activeId = sessions.length ? sessions[sessions.length - 1].id : null;
+  renderTabs();
+  renderActive();
+  persistSessions();
+}
+
+clearActiveBtn.addEventListener('click', () => { if(activeId) removeSession(activeId); });
+clearAllBtn.addEventListener('click', () => { sessions = []; activeId = null; renderTabs(); renderActive(); persistSessions(); });
+
+// =========================================================
+// Registros de Impuestos: totaliza por código de impuesto,
+// sumando todas las líneas válidas de todos los archivos cargados
+// que traen impuesto (0291, 0DG0, Débito por CBU, GIRE Nuevo .6105,
+// GIRE Viejo BDP 252-256).
+// =========================================================
+function sessionHasImpuestos(s){
+  if(!s.data) return false;
+  if(s.data.kind === 'impuestos' || s.data.kind === 'cbu' || s.data.kind === 'manual') return true;
+  if((s.data.kind === 'gire' || s.data.kind === 'bdp') && s.data.hasImpuestos) return true;
+  return false;
+}
+
+function computeImpuestoSummary(){
+  const groups = {};
+  sessions.forEach(s => {
+    if(!sessionHasImpuestos(s)) return;
+    s.data.rows.forEach(r => {
+      // Solo se suman líneas 100% válidas (Procesado = OK): impuesto
+      // reconocido, importe numérico y fecha correcta. Si una línea da
+      // Error por cualquiera de esos motivos (incluida la fecha), se
+      // rechaza y no entra a la sumatoria del impuesto.
+      if(!r.valido || !r.impuesto) return;
+      const key = normalizeImpuesto(r.impuesto);
+      if(!groups[key]){
+        // Contrato/Cuenta/Subcuenta/Nombre siempre se leen de la Tabla
+        // de Impuestos vigente (no de la línea), para que reflejen
+        // cualquier actualización posterior por Excel.
+        const info = lookupImpuesto(key);
+        groups[key] = {
+          impuesto: key, contrato: info.contrato, cuenta: info.cuenta, subcuenta: info.subcuenta,
+          nombreImpuesto: info.nombre, total: 0, archivos: {}
+        };
+      }
+      const g = groups[key];
+      g.total += r.monto;
+      if(!g.archivos[s.id]){
+        g.archivos[s.id] = { sessionId: s.id, tipoLabel: s.tipoLabel, fileName: s.fileName, entidad: s.data.entidad || null, subtotal: 0 };
+      }
+      g.archivos[s.id].subtotal += r.monto;
+    });
+  });
+  return Object.values(groups).sort((a,b) => a.impuesto.localeCompare(b.impuesto));
+}
+
+function renderImpuestoSummary(){
+  summaryMeta.innerHTML = '<b>Registros de Impuestos</b> · totalizado de todos los archivos cargados';
+  summarySectionTitle.textContent = 'Totales por impuesto (sumando todos los tipos de archivo que traen impuesto)';
+
+  const groups = computeImpuestoSummary();
+  summaryThead.innerHTML = `<tr>
+    <th>Contrato</th><th>Cuenta</th><th>Subcuenta</th><th>Impuesto</th><th>Nombre impuesto</th>
+    <th style="text-align:right;">Importe total</th><th>Archivo recibido</th>
+  </tr>`;
+  summaryTbody.innerHTML = '';
+
+  if(!groups.length){
+    summaryEmptyNote.style.display = 'block';
+    summaryEmptyNote.textContent = 'Todavía no hay archivos con impuestos válidos para totalizar. Cargá algún 0291, 0DG0, Débito por CBU, GIRE Nuevo (.6105) o GIRE Viejo BDP (252 a 256) y volvé a abrir esta pantalla.';
+  } else {
+    summaryEmptyNote.style.display = 'none';
+    groups.forEach(g => {
+      const tr = document.createElement('tr');
+      const archivosHtml = Object.values(g.archivos).map(a => {
+        const label = a.entidad ? `${a.fileName} (${a.entidad})` : a.fileName;
+        return `<span class="file-chip" data-session="${a.sessionId}">${label} · ${fmtMonto(a.subtotal)}</span>`;
+      }).join('');
+      tr.innerHTML = `
+        <td><span class="badge contrato">${g.contrato || '—'}</span></td>
+        <td class="mono">${g.cuenta || '—'}</td>
+        <td class="mono">${g.subcuenta || '—'}</td>
+        <td class="mono">${g.impuesto}</td>
+        <td>${g.nombreImpuesto}</td>
+        <td class="amount">${fmtMonto(g.total)}</td>
+        <td>${archivosHtml}</td>
+      `;
+      summaryTbody.appendChild(tr);
+    });
+    wireFileChips();
+  }
+
+  paper.classList.remove('show');
+  impuestoSummaryPanel.classList.add('show');
+}
+
+function wireFileChips(){
+  summaryTbody.querySelectorAll('.file-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      activeId = chip.getAttribute('data-session');
+      closeSummary();
+      renderTabs();
+      renderActive();
+      persistSessions();
+    });
+  });
+}
+
+// =========================================================
+// Registros por Empresa: agrupa TODO lo que no es impuesto —
+// Iosep y las municipalidades (GIRE Viejo/Nuevo) más cualquier
+// pago cargado por Ingreso Interactivo — por número de Cuenta,
+// usando la Tabla de Contratos como fuente de Contrato/Subcuenta/
+// Nombre. Si dos orígenes distintos apuntan a la misma cuenta
+// (ej. un archivo y un ingreso manual), se suman en la misma fila.
+// =========================================================
+function computeEmpresaSummary(){
+  const groups = {};
+  function addRow(key, contrato, cuenta, subcuenta, nombreEmpresa, monto, s){
+    if(!groups[key]){
+      groups[key] = { key, contrato, cuenta, subcuenta, nombreEmpresa, total: 0, archivos: {} };
+    }
+    const g = groups[key];
+    g.total += monto;
+    if(!g.archivos[s.id]){
+      g.archivos[s.id] = { sessionId: s.id, tipoLabel: s.tipoLabel, fileName: s.fileName, entidad: s.data.entidad || null, subtotal: 0 };
+    }
+    g.archivos[s.id].subtotal += monto;
+  }
+
+  sessions.forEach(s => {
+    if(!s.data) return;
+    if(s.data.kind === 'bdp' && !s.data.hasImpuestos){
+      const info = lookupContratoPorNombre('IOSEP');
+      const key = info.reconocido ? String(info.cuenta).trim() : 'IOSEP';
+      s.data.rows.forEach(r => {
+        if(!r.valido) return;
+        addRow(key, info.reconocido ? info.contrato : 'No definido', info.reconocido ? info.cuenta : '—', info.reconocido ? info.subcuenta : '—', 'Iosep', r.monto, s);
+      });
+    } else if(s.data.kind === 'gire' && !s.data.hasImpuestos){
+      const nombre = s.data.entidad;
+      const info = lookupContratoPorNombre(nombre);
+      const key = info.reconocido ? String(info.cuenta).trim() : nombre.toUpperCase();
+      s.data.rows.forEach(r => {
+        if(!r.valido) return;
+        addRow(key, info.reconocido ? info.contrato : 'No definido', info.reconocido ? info.cuenta : '—', info.reconocido ? info.subcuenta : '—', nombre, r.monto, s);
+      });
+    } else if(s.data.kind === 'manual'){
+      s.data.rows.forEach(r => {
+        if(r.impuesto) return; // los de DGR van al resumen de Impuestos, no acá
+        addRow(String(r.cuenta).trim(), r.contrato, r.cuenta, r.subcuenta, r.nombreEmpresa, r.monto, s);
+      });
+    } else if(s.data.kind === 'entes'){
+      // PR5: cada línea OK se agrupa por Cuenta del ente (incluye DGR
+      // como un ente más, así queda su totalizador acá también). Se
+      // suma el Importe Neto, que es lo que efectivamente se acredita.
+      // La Subcuenta se levanta haciendo match de Contrato/Cuenta
+      // contra la Tabla de Contratos — salvo DGR (029/DGO), que no
+      // trae Contrato en PR5 y por eso queda sin subcuenta.
+      s.data.rows.forEach(r => {
+        if(!r.valido) return;
+        const key = String(r.cuenta).trim();
+        let subcuenta = '';
+        if(r.contrato){
+          const info = lookupContratoPorCuenta(r.cuenta);
+          if(info.reconocido) subcuenta = info.subcuenta;
+        }
+        addRow(key, r.contrato, r.cuenta, subcuenta, r.descripcion, r.neto.value, s);
+      });
+    } else if(s.data.kind === 'simple'){
+      // ALV: todo el archivo pertenece siempre al mismo ente. Misma
+      // lógica de Subcuenta que PR5 (match Contrato/Cuenta contra la
+      // Tabla de Contratos).
+      const key = String(s.data.cuenta).trim();
+      let subcuentaAlv = '';
+      if(s.data.contrato){
+        const info = lookupContratoPorCuenta(s.data.cuenta);
+        if(info.reconocido) subcuentaAlv = info.subcuenta;
+      }
+      s.data.rows.forEach(r => {
+        if(!r.valido) return;
+        addRow(key, s.data.contrato, s.data.cuenta, subcuentaAlv, s.data.nombreEmpresa, r.monto, s);
+      });
+    }
+  });
+
+  return Object.values(groups).sort((a,b) => (a.nombreEmpresa || '').localeCompare(b.nombreEmpresa || ''));
+}
+
+function renderEmpresaSummary(){
+  summaryMeta.innerHTML = '<b>Registros por Empresa</b> · totalizado de todos los archivos y del Ingreso Interactivo';
+  summarySectionTitle.textContent = 'Totales por empresa: PR5 (incluye DGR), ALV, Iosep, municipalidades y cualquier otra cargada por Ingreso Interactivo — agrupado por Cuenta';
+  summaryThead.innerHTML = `<tr>
+    <th>Contrato</th><th>Cuenta</th><th>Subcuenta</th><th>Entidad</th>
+    <th style="text-align:right;">Importe total</th><th>Archivo recibido</th>
+  </tr>`;
+  summaryTbody.innerHTML = '';
+
+  const groups = computeEmpresaSummary();
+
+  if(!groups.length){
+    summaryEmptyNote.style.display = 'block';
+    summaryEmptyNote.textContent = 'Todavía no hay registros para totalizar. Cargá un GIRE Nuevo (.6091/.6096), un GIRE Viejo BDP (251), un PR5, un ALV, o ingresá un pago por Ingreso Interactivo.';
+  } else {
+    summaryEmptyNote.style.display = 'none';
+    groups.forEach(g => {
+      const archivosHtml = Object.values(g.archivos).map(a => {
+        const label = a.entidad ? `${a.fileName} (${a.entidad})` : a.fileName;
+        return `<span class="file-chip" data-session="${a.sessionId}">${label} · ${fmtMonto(a.subtotal)}</span>`;
+      }).join('');
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><span class="badge contrato">${g.contrato || '—'}</span></td>
+        <td class="mono">${g.cuenta || '—'}</td>
+        <td class="mono">${g.subcuenta || '—'}</td>
+        <td>${g.nombreEmpresa || '—'}</td>
+        <td class="amount">${fmtMonto(g.total)}</td>
+        <td>${archivosHtml}</td>
+      `;
+      summaryTbody.appendChild(tr);
+    });
+    wireFileChips();
+  }
+
+  paper.classList.remove('show');
+  impuestoSummaryPanel.classList.add('show');
+}
+
+function closeSummary(){
+  impuestoSummaryPanel.classList.remove('show');
+  if(sessions.find(s => s.id === activeId)) paper.classList.add('show');
+}
+
+impuestoSummaryBtn.addEventListener('click', renderImpuestoSummary);
+empresaSummaryBtn.addEventListener('click', renderEmpresaSummary);
+closeSummaryBtn.addEventListener('click', closeSummary);
+
+function renderActive(){
+  impuestoSummaryPanel.classList.remove('show');
+  const session = sessions.find(s => s.id === activeId);
+  if(!session){ paper.classList.remove('show'); warnBanner.style.display = 'none'; return; }
+  const { data, config, tipoLabel, fileName } = session;
+
+  if(data.kind === 'gire' || data.kind === 'bdp'){
+    paperMeta.innerHTML = `Archivo <b>${fileName}</b> - ${data.entidad}`;
+  } else if(data.kind === 'manual'){
+    paperMeta.innerHTML = `<b>Ingreso Interactivo</b> · ${data.rows.length} registro${data.rows.length === 1 ? '' : 's'} ingresado${data.rows.length === 1 ? '' : 's'}`;
+  } else {
+    paperMeta.innerHTML = `<b>${tipoLabel}</b> · ${fileName}`
+      + (data.contrato ? ` · Contrato <b>${data.contrato}</b> · Cuenta <b>${data.cuenta}</b>` : '');
+  }
+  renderStats(data);
+
+  if(data.kind === 'entes') renderTableEntes(data);
+  else if(data.kind === 'cbu') renderTableCbu(data);
+  else if(data.kind === 'simple') renderTableSimple(data);
+  else if(data.kind === 'gire') renderTableGire(data);
+  else if(data.kind === 'bdp') renderTableBdp(data);
+  else if(data.kind === 'manual') renderTableManual(data);
+  else renderTableImpuestos(data);
+
+  const kindTieneAsiento = data.kind === 'entes' || data.kind === 'impuestos' || data.kind === 'cbu' || data.kind === 'bdp' || data.kind === 'manual'
+    || (data.kind === 'gire' && data.hasImpuestos);
+  toggleAsiento.style.display = kindTieneAsiento ? 'inline-block' : 'none';
+  nuevoRecaudoBtn.style.display = data.kind === 'manual' ? 'inline-block' : 'none';
+  asientoView.classList.remove('show');
+  asientoView.innerHTML = '';
+  toggleAsiento.textContent = 'Ver asiento contable';
+
+  if(data.kind === 'manual'){
+    toggleRaw.style.display = 'none';
+  } else {
+    toggleRaw.style.display = 'inline-block';
+    renderRaw(data, config);
+  }
+
+  paper.classList.add('show');
+}
+
+function statCard(label, value, cls){
+  return `<div class="stat ${cls||''}"><div class="label">${label}</div><div class="value">${value}</div></div>`;
+}
+
+function renderStats(data){
+  warnBanner.style.display = 'none';
+  let html = '';
+  if(data.kind === 'entes'){
+    statRow.style.gridTemplateColumns = 'repeat(4,1fr)';
+    const montoContabilizado = data.rows
+      .filter(r => r.valido && !esEnteDGR(r.ente))
+      .reduce((s,r) => s + r.importe.value, 0);
+    html += statCard('Fecha archivo', data.fechaRaw || 'No disponible', '');
+    html += statCard('Monto Contabilizado', fmtMonto(montoContabilizado), '');
+    html += statCard('Registros válidos', data.validos, 'valid');
+    html += statCard('Registros no válidos', data.invalidos, 'invalid');
+    warnBanner.style.display = 'block';
+    warnBanner.textContent = 'Registros DGR no contabilizan a través de éste archivo.';
+    if(data.fechaWarning){ warnBanner.textContent += ' ' + data.fechaWarning; }
+  } else if(data.kind === 'cbu' || data.kind === 'gire'){
+    statRow.style.gridTemplateColumns = 'repeat(4,1fr)';
+    html += statCard('Fecha archivo', data.fechaRaw ? fmtFecha(data.fechaRaw) : 'No disponible', '');
+    html += statCard('Monto total recibido válido', fmtMonto(data.montoValido), '');
+    html += statCard('Registros válidos', data.validos, 'valid');
+    html += statCard('Registros no válidos', data.invalidos, 'invalid');
+    if(data.fechaWarning){ warnBanner.style.display = 'block'; warnBanner.textContent = data.fechaWarning; }
+  } else if(data.kind === 'bdp'){
+    statRow.style.gridTemplateColumns = 'repeat(3,1fr)';
+    html += statCard('Fecha archivo', data.fechaRaw ? fmtFecha(data.fechaRaw) : 'No disponible', '');
+    html += statCard('Monto total recibido válido', fmtMonto(data.montoValido), '');
+    html += statCard('Aprobadas leídas', data.aprobadas, 'valid');
+    html += statCard('Rechazadas (no incluidas)', data.rechazadas, 'invalid');
+    html += statCard('Registros válidos', data.validos, 'valid');
+    html += statCard('Registros no válidos', data.invalidos, 'invalid');
+    if(data.fechaWarning){ warnBanner.style.display = 'block'; warnBanner.textContent = data.fechaWarning; }
+  } else if(data.kind === 'manual'){
+    statRow.style.gridTemplateColumns = 'repeat(1,1fr)';
+    html += statCard('Registros ingresados', data.rows.length, 'valid');
+  } else {
+    statRow.style.gridTemplateColumns = 'repeat(4,1fr)';
+    html += statCard('Fecha archivo', data.fechaRaw ? fmtFecha(data.fechaRaw) : 'No disponible', '');
+    html += statCard('Monto total recibido válido', fmtMonto(data.montoValido), '');
+    html += statCard('Registros válidos', data.validos, 'valid');
+    html += statCard('Registros no válidos', data.invalidos, 'invalid');
+    if(data.fechaRaw === null){
+      warnBanner.style.display = 'block';
+      warnBanner.textContent = 'Este tipo de archivo aún no tiene confirmada la posición de la fecha en la cabecera, así que "Fecha archivo" no se calcula por ahora.';
+    }
+  }
+  statRow.innerHTML = html;
+}
+
+function renderTableImpuestos(data){
+  thead.innerHTML = `<tr>
+    <th>Contrato</th><th>Cuenta</th><th>Subcuenta</th><th>Impuesto</th><th>Nombre de impuesto</th><th>Código de barras</th>
+    <th style="text-align:right;">Monto</th><th>Fecha pago</th><th>Procesado</th><th>Línea</th>
+  </tr>`;
+  tbody.innerHTML = '';
+  data.rows.forEach((r, idx) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><span class="badge contrato">${r.contrato}</span></td>
+      <td class="mono">${r.cuenta || '—'}</td>
+      <td class="mono">${r.subcuenta || '—'}</td>
+      <td class="mono">${r.impuesto || '—'}</td>
+      <td>${r.nombreImpuesto}</td>
+      <td class="mono">${r.cb || '—'}</td>
+      <td class="amount">${/^\d+$/.test(r.montoRaw) ? fmtMonto(r.monto) : r.montoRaw}</td>
+      <td class="mono">${r.fechaOk ? fmtFecha(r.fechaPago) : (r.fechaPago.trim() || '—') + ' ⚠'}</td>
+      <td>${r.valido ? '<span class="badge ok">OK</span>' : '<span class="badge err">Error</span>'}</td>
+      <td class="mono">${r.lineNumber}</td>
+    `;
+    if(!r.valido) tr.style.background = '#f3e1de';
+    if(r.valido){
+      tr.classList.add('selectable');
+      tr.addEventListener('click', () => selectAsientoRowImpuesto(data, idx, tr));
+    }
+    tbody.appendChild(tr);
+  });
+}
+
+function renderTableSimple(data){
+  thead.innerHTML = `<tr>
+    <th style="text-align:right;">Importe pagado</th><th>Fecha de pago</th><th>Procesado</th><th>Línea</th>
+  </tr>`;
+  tbody.innerHTML = '';
+  data.rows.forEach(r => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="amount">${/^\d+$/.test(r.montoRaw) ? fmtMonto(r.monto) : r.montoRaw}</td>
+      <td class="mono">${r.fechaOk ? fmtFecha(r.fechaPago) : (r.fechaPago.trim() || '—') + ' ⚠'}</td>
+      <td>${r.valido ? '<span class="badge ok">OK</span>' : '<span class="badge err">Error</span>'}</td>
+      <td class="mono">${r.lineNumber}</td>
+    `;
+    if(!r.valido) tr.style.background = '#f3e1de';
+    tbody.appendChild(tr);
+  });
+}
+
+function renderTableGire(data){
+  let cols;
+  if(data.hasImpuestos){
+    cols = ['Contrato', 'Cuenta', 'Subcuenta', 'Impuesto', 'Nombre impuesto', 'Importe', 'Cód. barras', 'Fecha de pago', 'Procesado', 'Línea'];
+  } else {
+    cols = ['Fecha de pago', 'Importe', 'Código de barras', 'Procesado', 'Línea'];
+  }
+  thead.innerHTML = '<tr>' + cols.map(c => `<th${c === 'Importe' ? ' style="text-align:right;"' : ''}>${c}</th>`).join('') + '</tr>';
+
+  tbody.innerHTML = '';
+  data.rows.forEach((r, idx) => {
+    let cells;
+    if(data.hasImpuestos){
+      cells = `
+        <td><span class="badge contrato">${r.contrato}</span></td>
+        <td class="mono">${r.cuenta || '—'}</td>
+        <td class="mono">${r.subcuenta || '—'}</td>
+        <td class="mono">${r.impuesto || '—'}</td>
+        <td>${r.nombreImpuesto || '—'}</td>
+        <td class="amount">${/^\d+$/.test(r.montoRaw) ? fmtMonto(r.monto) : r.montoRaw}</td>
+        <td class="mono">${r.cb || '—'}</td>
+        <td class="mono">${r.fechaOk ? fmtFecha(r.fechaPago) : (r.fechaPago.trim() || '—') + ' ⚠'}</td>
+        <td>${r.valido ? '<span class="badge ok">OK</span>' : '<span class="badge err">Error</span>'}</td>
+        <td class="mono">${r.lineNumber}</td>
+      `;
+    } else {
+      cells = `
+        <td class="mono">${r.fechaOk ? fmtFecha(r.fechaPago) : (r.fechaPago.trim() || '—') + ' ⚠'}</td>
+        <td class="amount">${/^\d+$/.test(r.montoRaw) ? fmtMonto(r.monto) : r.montoRaw}</td>
+        <td class="mono">${r.cb || '—'}</td>
+        <td>${r.valido ? '<span class="badge ok">OK</span>' : '<span class="badge err">Error</span>'}</td>
+        <td class="mono">${r.lineNumber}</td>
+      `;
+    }
+    const tr = document.createElement('tr');
+    tr.innerHTML = cells;
+    if(!r.valido) tr.style.background = '#f3e1de';
+    if(r.valido && data.hasImpuestos){
+      tr.classList.add('selectable');
+      tr.addEventListener('click', () => selectAsientoRowGire(data, idx, tr));
+    }
+    tbody.appendChild(tr);
+  });
+}
+
+function renderTableBdp(data){
+  let cols;
+  if(data.hasImpuestos){
+    cols = ['Contrato', 'Cuenta', 'Subcuenta', 'Impuesto', 'Nombre impuesto', 'Importe', 'Código de barras', 'Fecha de pago', 'Estatus', 'Procesado', 'Línea'];
+  } else {
+    cols = ['Importe', 'Fecha de pago', 'Moneda', 'Estatus', 'Procesado', 'Línea'];
+  }
+  thead.innerHTML = '<tr>' + cols.map(c => `<th${c === 'Importe' ? ' style="text-align:right;"' : ''}>${c}</th>`).join('') + '</tr>';
+
+  tbody.innerHTML = '';
+  data.rows.forEach((r, idx) => {
+    const fechaCell = r.fechaOk ? fmtFecha(r.fechaPago) : (r.fechaPagoDisplay || '—') + ' ⚠';
+    const montoCell = /^\d+,\d{1,2}$/.test(r.montoRaw) ? fmtMonto(r.monto) : r.montoRaw;
+    let cells;
+    if(data.hasImpuestos){
+      cells = `
+        <td><span class="badge contrato">${r.contrato}</span></td>
+        <td class="mono">${r.cuenta || '—'}</td>
+        <td class="mono">${r.subcuenta || '—'}</td>
+        <td class="mono">${r.impuesto || '—'}</td>
+        <td>${r.nombreImpuesto || '—'}</td>
+        <td class="amount">${montoCell}</td>
+        <td class="mono">${r.cb || '—'}</td>
+        <td class="mono">${fechaCell}</td>
+        <td>${r.estatus}</td>
+        <td>${r.valido ? '<span class="badge ok">OK</span>' : '<span class="badge err">Error</span>'}</td>
+        <td class="mono">${r.lineNumber}</td>
+      `;
+    } else {
+      cells = `
+        <td class="amount">${montoCell}</td>
+        <td class="mono">${fechaCell}</td>
+        <td class="mono">${r.moneda || '—'}</td>
+        <td>${r.estatus}</td>
+        <td>${r.valido ? '<span class="badge ok">OK</span>' : '<span class="badge err">Error</span>'}</td>
+        <td class="mono">${r.lineNumber}</td>
+      `;
+    }
+    const tr = document.createElement('tr');
+    tr.innerHTML = cells;
+    if(!r.valido) tr.style.background = '#f3e1de';
+    if(r.valido){
+      tr.classList.add('selectable');
+      tr.addEventListener('click', () => selectAsientoRowBdp(data, idx, tr));
+    }
+    tbody.appendChild(tr);
+  });
+}
+
+function renderTableCbu(data){
+  thead.innerHTML = `<tr>
+    <th>Contrato</th><th>Cuenta</th><th>Subcuenta</th><th>Impuesto</th><th>Nombre de impuesto</th>
+    <th style="text-align:right;">Monto</th><th>Fecha de pago</th><th>Procesado</th><th>Línea</th>
+  </tr>`;
+  tbody.innerHTML = '';
+  const fechaCell = data.fechaRaw ? fmtFecha(data.fechaRaw) : 'No disponible';
+  data.rows.forEach((r, idx) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><span class="badge contrato">${r.contrato}</span></td>
+      <td class="mono">${r.cuenta || '—'}</td>
+      <td class="mono">${r.subcuenta || '—'}</td>
+      <td class="mono">${r.impuesto || '—'}</td>
+      <td>${r.nombreImpuesto}</td>
+      <td class="amount">${/^\d+\.\d{1,2}$/.test(r.montoRaw) ? fmtMonto(r.monto) : r.montoRaw}</td>
+      <td class="mono">${fechaCell}</td>
+      <td>${r.valido ? '<span class="badge ok">OK</span>' : '<span class="badge err">Error</span>'}</td>
+      <td class="mono">${r.lineNumber}</td>
+    `;
+    if(!r.valido) tr.style.background = '#f3e1de';
+    if(r.valido){
+      tr.classList.add('selectable');
+      tr.addEventListener('click', () => selectAsientoRowCbu(data, idx, tr));
+    }
+    tbody.appendChild(tr);
+  });
+}
+
+function renderTableManual(data){
+  thead.innerHTML = `<tr>
+    <th>Cuenta</th><th>Nombre Empresa</th><th>Impuesto</th>
+    <th style="text-align:right;">Importe</th><th>Forma de pago</th><th>Línea</th>
+  </tr>`;
+  tbody.innerHTML = '';
+  const FORMA_PAGO_LABEL = {
+    efectivo: 'Efectivo', caja_ahorro: 'Caja de Ahorros', cta_cte: 'Cuenta Corriente',
+    cheque_bse: 'CC - Cheque BSE', cheque_otros: 'Ch. Certificado otros Bancos'
+  };
+  data.rows.forEach((r, idx) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="mono">${r.cuenta}</td>
+      <td>${r.nombreEmpresa || '—'}</td>
+      <td class="mono">${r.impuesto || '—'}</td>
+      <td class="amount">${fmtMonto(r.monto)}</td>
+      <td>${FORMA_PAGO_LABEL[r.formaPago] || r.formaPago}</td>
+      <td class="mono">${r.lineNumber}</td>
+    `;
+    tr.classList.add('selectable');
+    tr.addEventListener('click', () => selectAsientoRowManual(data, idx, tr));
+    tbody.appendChild(tr);
+  });
+}
+
+function renderTableEntes(data){
+  thead.innerHTML = `<tr>
+    <th>Contrato</th><th>Ente</th><th>Descripción del ente</th><th>Nro cuenta</th>
+    <th style="text-align:right;">Importe bruto</th>
+    <th style="text-align:right;">Importe neto</th>
+    <th style="text-align:right;">Comisión emisores</th>
+    <th style="text-align:right;">IVA com. emisores</th>
+    <th style="text-align:right;">Comisión adherente</th>
+    <th style="text-align:right;">IVA com. adherente</th>
+    <th style="text-align:right;">Percepción</th>
+    <th style="text-align:right;">Retenciones IVA</th>
+    <th style="text-align:right;">Retenciones ganancias</th>
+    <th style="text-align:right;">Retenciones IIBB</th>
+    <th>Procesado</th><th>Línea</th>
+  </tr>`;
+  tbody.innerHTML = '';
+  data.rows.forEach((r, idx) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><span class="badge contrato">${r.contrato || '—'}</span></td>
+      <td class="mono">${r.ente}</td>
+      <td>${r.descripcion}</td>
+      <td class="mono">${r.cuenta}</td>
+      <td class="amount">${fmtCell(r.importe, false)}</td>
+      <td class="amount">${fmtCell(r.neto, true)}</td>
+      <td class="amount">${fmtCell(r.comisionEmisores, false)}</td>
+      <td class="amount">${fmtCell(r.ivaComEmisores, false)}</td>
+      <td class="amount">${fmtCell(r.comisionAdherente, true)}</td>
+      <td class="amount">${fmtCell(r.ivaComAdherente, true)}</td>
+      <td class="amount">${fmtCell(r.percepcion, false)}</td>
+      <td class="amount">${fmtCell(r.retIva, false)}</td>
+      <td class="amount">${fmtCell(r.retGan, false)}</td>
+      <td class="amount">${fmtCell(r.retIIBB, false)}</td>
+      <td>${r.valido ? '<span class="badge ok">OK</span>' : '<span class="badge err">Error</span>'}</td>
+      <td class="mono">${r.lineNumber}</td>
+    `;
+    if(!r.valido) tr.style.background = '#f3e1de';
+    if(r.valido){
+      tr.classList.add('selectable');
+      tr.addEventListener('click', () => selectAsientoRowPR5(data, idx, tr));
+    }
+    tbody.appendChild(tr);
+  });
+}
+
+// =========================================================
+// Asiento contable (PR5, 0291, 0DG0): motor de cálculo. "Rubro" es
+// el código de cuenta contable fijo; "Cuenta" (y "Sub cuenta" en
+// los archivos de impuesto) se resuelven contra las mismas tablas
+// de Entes / Impuestos que ya usa el resto de la app.
+// =========================================================
+const RUBROS = { bcra: '111015001', idbc: '321151601', ente: '311706002', recaudacionesLink: '321154009' };
+
+function round2(n){ return Math.round((n + Number.EPSILON) * 100) / 100; }
+
+// ---- PR5 ----
+function calcularAsientoPR5(r){
+  const lines = [];
+  const add = (ordinal, debito, credito, rubro, cuenta, descripcion) => {
+    if(!debito && !credito) return; // no ejecuta
+    lines.push({ ordinal, debito: debito || 0, credito: credito || 0, rubro, cuenta, descripcion });
+  };
+
+  const importe = r.importe.value;
+  add(5, importe, 0, RUBROS.bcra, '-', 'BCRA CC Ing. Bruto');
+  add(10, 0, importe, RUBROS.ente, r.cuenta, 'Acredita Empresa Ing Bruto');
+  if(importe > 0){
+    const idbc10 = round2(importe * 0.006);
+    add(12, 0, idbc10, RUBROS.idbc, r.cuenta, 'IDBC Ord.10');
+    add(13, idbc10, 0, RUBROS.ente, r.cuenta, 'Dcto Deb y creds');
+  }
+
+  const comAdh = r.comisionAdherente.value;
+  const ivaComAdh = r.ivaComAdherente.value;
+  if(comAdh > 0){
+    const a15 = Math.abs(comAdh), a20 = Math.abs(ivaComAdh);
+    add(15, a15, 0, RUBROS.ente, r.cuenta, 'Comisión Adherente (+)');
+    add(20, a20, 0, RUBROS.ente, r.cuenta, 'IVA Comisión Adherente (+)');
+    if(a15 > 0){
+      const idbc15 = round2(a15 * 0.006);
+      add(22, 0, idbc15, RUBROS.idbc, r.cuenta, 'IDBC Ord.15');
+      add(23, idbc15, 0, RUBROS.ente, r.cuenta, 'Dcto Deb y creds');
+    }
+    add(35, 0, round2(a15 + a20), RUBROS.bcra, '-', 'BCRA');
+  } else if(comAdh < 0){
+    const a25 = Math.abs(comAdh), a30 = Math.abs(ivaComAdh);
+    add(25, 0, a25, RUBROS.ente, r.cuenta, 'Comisión Adherente (-)');
+    add(30, 0, a30, RUBROS.ente, r.cuenta, 'IVA Comisión Adherente (-)');
+    if(a25 > 0){
+      const idbc25 = round2(a25 * 0.006);
+      add(32, 0, idbc25, RUBROS.idbc, r.cuenta, 'IDBC Ord.25');
+      add(33, idbc25, 0, RUBROS.ente, r.cuenta, 'Dcto Deb y creds');
+    }
+    add(40, round2(a25 + a30), 0, RUBROS.bcra, '-', 'BCRA');
+  }
+
+  const comEmi = r.comisionEmisores.value;
+  const ivaComEmi = r.ivaComEmisores.value;
+  add(45, comEmi, 0, RUBROS.ente, r.cuenta, 'Comisión Emisores');
+  add(50, ivaComEmi, 0, RUBROS.ente, r.cuenta, 'IVA Comisión Emisores');
+  if(comEmi > 0){
+    const idbc45 = round2(comEmi * 0.006);
+    add(52, 0, idbc45, RUBROS.idbc, r.cuenta, 'IDBC Ord.45');
+    add(53, idbc45, 0, RUBROS.ente, r.cuenta, 'Dcto Deb y creds');
+  }
+
+  add(55, r.percepcion.value, 0, RUBROS.ente, r.cuenta, 'Percepción');
+  add(60, r.retIva.value, 0, RUBROS.ente, r.cuenta, 'Retenciones IVA');
+  add(65, r.retGan.value, 0, RUBROS.ente, r.cuenta, 'Retenciones Ganancias');
+  add(70, r.retIIBB.value, 0, RUBROS.ente, r.cuenta, 'Retenciones IIBB');
+
+  const sum75 = round2(comEmi + ivaComEmi + r.percepcion.value + r.retIva.value + r.retGan.value + r.retIIBB.value);
+  add(75, 0, sum75, RUBROS.bcra, '-', 'Acredita CV Contratos');
+
+  lines.sort((a,b) => a.ordinal - b.ordinal);
+  const totalDebito = round2(lines.reduce((s,l) => s + l.debito, 0));
+  const totalCredito = round2(lines.reduce((s,l) => s + l.credito, 0));
+  return { lines, totalDebito, totalCredito };
+}
+
+// ---- 0291 / 0DG0 (archivos de impuesto) ----
+function calcularAsientoImpuesto(r){
+  const dgo = ENTES_MAP[normalizeEnte('DGO')];
+  const cuentaDGO = dgo ? dgo.cuenta : '3950';
+  const monto = r.monto;
+  const lines = [
+    { ordinal: 10, rubro: RUBROS.bcra, cuenta: '-', subcuenta: '-', debito: monto, credito: 0, descripcion: 'BCRA CC Ing. Bruto' },
+    { ordinal: 50, rubro: RUBROS.recaudacionesLink, cuenta: cuentaDGO, subcuenta: r.subcuenta || '-', debito: 0, credito: monto, descripcion: 'Recaudaciones Link (Pagar)' },
+  ];
+  const totalDebito = round2(monto);
+  const totalCredito = round2(monto);
+  return { lines, totalDebito, totalCredito };
+}
+
+// ---- Débito por CBU ----
+// La cuenta y subcuenta del ordinal 10 salen del propio campo CBU
+// (22 posiciones): cuenta = posición 11, largo 8; subcuenta =
+// posición 19, largo 3 (ambas sin ceros a la izquierda).
+function quitarCerosIzquierda(str){
+  if(!/^\d+$/.test(str)) return str;
+  return String(parseInt(str, 10));
+}
+function calcularAsientoCbu(r){
+  const cbu = r.cbu || '';
+  const cuentaRaw = cbu.substring(10, 18);
+  const subcuentaRaw = cbu.substring(18, 21);
+  const cuenta10 = quitarCerosIzquierda(cuentaRaw) || '-';
+  const subcuenta10 = quitarCerosIzquierda(subcuentaRaw) || '-';
+  const monto = r.monto;
+  const lines = [
+    { ordinal: 10, rubro: RUBROS.ente, cuenta: cuenta10, subcuenta: subcuenta10, debito: monto, credito: 0, descripcion: 'CC Privada - Persona Juridica' },
+    { ordinal: 20, rubro: RUBROS.recaudacionesLink, cuenta: r.cuenta || '-', subcuenta: r.subcuenta || '-', debito: 0, credito: monto, descripcion: 'Recaudaciones Link (Pagar)' },
+  ];
+  const totalDebito = round2(monto);
+  const totalCredito = round2(monto);
+  return { lines, totalDebito, totalCredito };
+}
+
+// ---- GIRE Viejo BDP ----
+// 251 (Iosep, sin impuesto): ordinales 5 y 25 — la cuenta/subcuenta
+// del 25 se levanta de la entrada especial "IOSEP" en la Tabla de
+// Impuestos. 252-256 (con impuesto): ordinales 10 y 21 — cuenta/
+// subcuenta del 21 salen del impuesto propio de esa línea.
+const RUBROS_BDP = { procesa: '231009008', cvDgr: '321154009', pendienteIosep: '311154004' };
+function calcularAsientoBdp(r, hasImpuestos){
+  const monto = r.monto;
+  let lines;
+  if(!hasImpuestos){
+    const iosep = lookupContratoPorNombre('IOSEP');
+    lines = [
+      { ordinal: 5, rubro: RUBROS_BDP.procesa, cuenta: '-', subcuenta: '-', debito: monto, credito: 0, descripcion: 'Procesa IOSEP' },
+      { ordinal: 25, rubro: RUBROS_BDP.pendienteIosep, cuenta: iosep.reconocido ? (iosep.cuenta || '-') : '-', subcuenta: iosep.reconocido ? (iosep.subcuenta || '-') : '-', debito: 0, credito: monto, descripcion: 'Pendiente para IOSEP' },
+    ];
+  } else {
+    lines = [
+      { ordinal: 10, rubro: RUBROS_BDP.procesa, cuenta: '-', subcuenta: '-', debito: monto, credito: 0, descripcion: 'Procesa DGR' },
+      { ordinal: 21, rubro: RUBROS_BDP.cvDgr, cuenta: r.cuenta || '-', subcuenta: r.subcuenta || '-', debito: 0, credito: monto, descripcion: 'CV DGR por Impuesto' },
+    ];
+  }
+  const totalDebito = round2(monto);
+  const totalCredito = round2(monto);
+  return { lines, totalDebito, totalCredito };
+}
+
+// ---- Ingreso Interactivo (pago manual) ----
+// Ordinal 10 siempre se ejecuta (crédito). Se ejecuta exactamente
+// un ordinal de débito según la forma de pago elegida.
+function calcularAsientoManual({ cuenta, monto, impuestoCode, formaPago, cuentaCliente, subcuentaCliente, cheque }){
+  const esDGR = esCuentaDGR(cuenta);
+  let subcuenta10, nombreEmpresa;
+  if(esDGR){
+    const info = lookupImpuesto(impuestoCode);
+    subcuenta10 = info.subcuenta || '-';
+    const dgo = ENTES_MAP[normalizeEnte('DGO')];
+    nombreEmpresa = dgo ? dgo.descripcion : 'DGR';
+  } else {
+    const info = lookupContratoPorCuenta(cuenta);
+    subcuenta10 = info.subcuenta || '-';
+    nombreEmpresa = info.nombreEmpresa;
+  }
+
+  const lines = [
+    { ordinal: 10, rubro: '321154007', descripcion: 'Recaudaciones Caja Bse', cuenta: cuenta, subcuenta: subcuenta10, cheque: '', debito: 0, credito: monto },
+  ];
+
+  if(formaPago === 'efectivo'){
+    lines.push({ ordinal: 43, rubro: '111001002', descripcion: 'Efectivo en Caja', cuenta: '-', subcuenta: '-', cheque: '', debito: monto, credito: 0 });
+  } else if(formaPago === 'caja_ahorro'){
+    lines.push({ ordinal: 45, rubro: '311718001', descripcion: 'CA Cajas De Ahorros Común - Pesos', cuenta: cuentaCliente, subcuenta: subcuentaCliente || '-', cheque: '', debito: monto, credito: 0 });
+  } else if(formaPago === 'cta_cte'){
+    lines.push({ ordinal: 47, rubro: '311106002', descripcion: 'Ctas Corrientes', cuenta: cuentaCliente, subcuenta: subcuentaCliente || '-', cheque: '', debito: monto, credito: 0 });
+  } else if(formaPago === 'cheque_bse'){
+    lines.push({ ordinal: 49, rubro: '311106002', descripcion: 'Ctas Corrientes', cuenta: cuentaCliente, subcuenta: subcuentaCliente || '-', cheque: cheque, debito: monto, credito: 0 });
+  } else if(formaPago === 'cheque_otros'){
+    lines.push({ ordinal: 51, rubro: '111001777', descripcion: 'Ch.Certificado otros Bancos', cuenta: '-', subcuenta: '-', cheque: cheque, debito: monto, credito: 0 });
+  }
+
+  const totalDebito = round2(lines.reduce((s,l) => s + l.debito, 0));
+  const totalCredito = round2(lines.reduce((s,l) => s + l.credito, 0));
+  return { lines, totalDebito, totalCredito, nombreEmpresa };
+}
+
+function populateManualImpuestoSelect(){
+  const seen = new Set();
+  const opts = [];
+  activeImpuestoTable.forEach(([impuesto, contrato, nombre]) => {
+    const key = normalizeImpuesto(impuesto);
+    if(seen.has(key)) return;
+    seen.add(key);
+    opts.push(`<option value="${key}">${key} — ${nombre}</option>`);
+  });
+  manualImpuesto.innerHTML = opts.join('');
+}
+
+function manualActualizarCuenta(){
+  const cuenta = manualCuenta.value.trim();
+  manualError.style.display = 'none';
+  if(!cuenta){
+    manualNombreEmpresa.textContent = '';
+    manualImpuestoWrap.style.display = 'none';
+    return;
+  }
+  if(esCuentaDGR(cuenta)){
+    const dgo = ENTES_MAP[normalizeEnte('DGO')];
+    manualNombreEmpresa.textContent = `Empresa: ${dgo ? dgo.descripcion : 'DGR'} (habilitá el impuesto a pagar abajo)`;
+    populateManualImpuestoSelect();
+    manualImpuestoWrap.style.display = 'block';
+  } else {
+    manualImpuestoWrap.style.display = 'none';
+    const info = lookupContratoPorCuenta(cuenta);
+    if(info.reconocido){
+      manualNombreEmpresa.textContent = `Empresa: ${info.nombreEmpresa}`;
+    } else {
+      manualNombreEmpresa.textContent = 'Cuenta no encontrada en la Tabla de Contratos — cargala en "⚙ Actualizar tabla de Contratos" antes de confirmar.';
+    }
+  }
+}
+manualCuenta.addEventListener('input', manualActualizarCuenta);
+
+function manualActualizarFormaPago(){
+  const fp = manualFormaPago.value;
+  const needCuenta = fp === 'caja_ahorro' || fp === 'cta_cte' || fp === 'cheque_bse';
+  const needCheque = fp === 'cheque_bse' || fp === 'cheque_otros';
+  manualCuentaClienteWrap.style.display = needCuenta ? 'block' : 'none';
+  manualSubcuentaClienteWrap.style.display = needCuenta ? 'block' : 'none';
+  manualChequeWrap.style.display = needCheque ? 'block' : 'none';
+}
+manualFormaPago.addEventListener('change', manualActualizarFormaPago);
+manualActualizarFormaPago();
+
+function manualLimpiarFormulario(){
+  manualCuenta.value = '';
+  manualNombreEmpresa.textContent = '';
+  manualImpuestoWrap.style.display = 'none';
+  manualImporte.value = '';
+  manualFormaPago.value = 'efectivo';
+  manualCuentaCliente.value = '';
+  manualSubcuentaCliente.value = '';
+  manualCheque.value = '';
+  manualError.style.display = 'none';
+  manualActualizarFormaPago();
+}
+manualResetBtn.addEventListener('click', manualLimpiarFormulario);
+
+nuevoRecaudoBtn.addEventListener('click', () => {
+  tipoSelect.value = 'MANUAL';
+  updateTipoUI();
+  manualLimpiarFormulario();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+
+function getOrCreateManualSession(){
+  let s = sessions.find(x => x.tipoId === 'MANUAL');
+  if(s) return s;
+  s = {
+    id: Date.now() + '-' + Math.random().toString(36).slice(2,7),
+    tipoId: 'MANUAL', tipoLabel: 'Ingreso Interactivo', fileName: 'Ingreso Interactivo',
+    config: CONFIGS['MANUAL'], data: { kind:'manual', rows: [] }, rawText: null
+  };
+  sessions.push(s);
+  return s;
+}
+
+manualConfirmBtn.addEventListener('click', () => {
+  manualError.style.display = 'none';
+  const cuenta = manualCuenta.value.trim();
+  if(!cuenta){ manualError.style.display = 'block'; manualError.textContent = 'Ingresá la cuenta de la empresa.'; return; }
+
+  const esDGR = esCuentaDGR(cuenta);
+  let impuestoCode = null;
+  let contratoInfo, subcuentaInfo, nombreImpuesto = null;
+  if(esDGR){
+    impuestoCode = manualImpuesto.value;
+    if(!impuestoCode){ manualError.style.display = 'block'; manualError.textContent = 'Elegí el impuesto que se está pagando.'; return; }
+    const info = lookupImpuesto(impuestoCode);
+    contratoInfo = info.contrato; subcuentaInfo = info.subcuenta; nombreImpuesto = info.nombre;
+  } else {
+    const info = lookupContratoPorCuenta(cuenta);
+    if(!info.reconocido){ manualError.style.display = 'block'; manualError.textContent = 'Esa cuenta no está en la Tabla de Contratos. Cargala primero.'; return; }
+    contratoInfo = info.contrato; subcuentaInfo = info.subcuenta;
+  }
+
+  const importeRaw = manualImporte.value.trim();
+  const isNumeric = /^\d+([.,]\d{1,2})?$/.test(importeRaw);
+  if(!isNumeric){ manualError.style.display = 'block'; manualError.textContent = 'El importe no es un número válido (ej: 5500,00).'; return; }
+  const monto = parseFloat(importeRaw.replace(',', '.'));
+
+  const formaPago = manualFormaPago.value;
+  const needCuenta = formaPago === 'caja_ahorro' || formaPago === 'cta_cte' || formaPago === 'cheque_bse';
+  const needCheque = formaPago === 'cheque_bse' || formaPago === 'cheque_otros';
+  const cuentaCliente = manualCuentaCliente.value.trim();
+  const subcuentaCliente = manualSubcuentaCliente.value.trim();
+  const cheque = manualCheque.value.trim();
+  if(needCuenta && !cuentaCliente){ manualError.style.display = 'block'; manualError.textContent = 'Ingresá el nro de cuenta del cliente.'; return; }
+  if(needCheque && !cheque){ manualError.style.display = 'block'; manualError.textContent = 'Ingresá el nro de cheque.'; return; }
+
+  const asiento = calcularAsientoManual({ cuenta, monto, impuestoCode, formaPago, cuentaCliente, subcuentaCliente, cheque });
+
+  const manualSession = getOrCreateManualSession();
+  manualSession.data.rows.push({
+    lineNumber: manualSession.data.rows.length + 1,
+    cuenta, nombreEmpresa: asiento.nombreEmpresa,
+    contrato: contratoInfo, subcuenta: subcuentaInfo,
+    impuesto: impuestoCode, nombreImpuesto,
+    monto, formaPago, cuentaCliente, subcuentaCliente, cheque,
+    asiento, valido: true
+  });
+
+  activeId = manualSession.id;
+  renderTabs();
+  renderActive();
+  persistSessions();
+
+  // Autoseleccionar el registro recién ingresado para ver su asiento al toque.
+  const trs = tbody.querySelectorAll('tr');
+  const lastTr = trs[trs.length - 1];
+  if(lastTr) selectAsientoRowManual(manualSession.data, manualSession.data.rows.length - 1, lastTr);
+
+  manualLimpiarFormulario();
+});
+
+// ---- Selección de fila e interacción ----
+function selectAsientoRowPR5(data, idx, tr){
+  tbody.querySelectorAll('tr.row-selected').forEach(el => el.classList.remove('row-selected'));
+  tr.classList.add('row-selected');
+  const r = data.rows[idx];
+  asientoView.classList.add('show');
+  toggleAsiento.textContent = 'Ocultar asiento contable';
+
+  const asiento = calcularAsientoPR5(r);
+  const meta = `<div class="asiento-meta"><b>Transacción 54-4006</b> · Ente <b>${r.ente}</b> · ${r.descripcion} · Contrato ${r.contrato || '—'} · Cuenta ${r.cuenta}</div>`;
+  renderAsientoView(meta, asiento, false);
+}
+
+function selectAsientoRowImpuesto(data, idx, tr){
+  tbody.querySelectorAll('tr.row-selected').forEach(el => el.classList.remove('row-selected'));
+  tr.classList.add('row-selected');
+  const r = data.rows[idx];
+  const asiento = calcularAsientoImpuesto(r);
+  const meta = `<div class="asiento-meta"><b>Transacción 54-4007</b> · Impuesto <b>${r.impuesto}</b> · ${r.nombreImpuesto} · Contrato ${r.contrato || '—'}</div>`;
+  renderAsientoView(meta, asiento, true);
+  asientoView.classList.add('show');
+  toggleAsiento.textContent = 'Ocultar asiento contable';
+}
+
+function selectAsientoRowCbu(data, idx, tr){
+  tbody.querySelectorAll('tr.row-selected').forEach(el => el.classList.remove('row-selected'));
+  tr.classList.add('row-selected');
+  const r = data.rows[idx];
+  const asiento = calcularAsientoCbu(r);
+  const meta = `<div class="asiento-meta"><b>Transacción 54-4005</b> · Impuesto <b>${r.impuesto}</b> · ${r.nombreImpuesto} · Contrato ${r.contrato || '—'}</div>`;
+  renderAsientoView(meta, asiento, true);
+  asientoView.classList.add('show');
+  toggleAsiento.textContent = 'Ocultar asiento contable';
+}
+
+function selectAsientoRowBdp(data, idx, tr){
+  tbody.querySelectorAll('tr.row-selected').forEach(el => el.classList.remove('row-selected'));
+  tr.classList.add('row-selected');
+  const r = data.rows[idx];
+  const asiento = calcularAsientoBdp(r, data.hasImpuestos);
+  const metaExtra = data.hasImpuestos ? `Impuesto <b>${r.impuesto}</b> · ${r.nombreImpuesto} · Contrato ${r.contrato || '—'}` : `${data.entidad}`;
+  const meta = `<div class="asiento-meta"><b>Transacción 54-606</b> · ${metaExtra} · Línea ${r.lineNumber}</div>`;
+  renderAsientoView(meta, asiento, true);
+  asientoView.classList.add('show');
+  toggleAsiento.textContent = 'Ocultar asiento contable';
+}
+
+function selectAsientoRowManual(data, idx, tr){
+  tbody.querySelectorAll('tr.row-selected').forEach(el => el.classList.remove('row-selected'));
+  tr.classList.add('row-selected');
+  const r = data.rows[idx];
+  const meta = `<div class="asiento-meta">Cuenta <b>${r.cuenta}</b> · ${r.nombreEmpresa || '—'}${r.impuesto ? ' · Impuesto ' + r.impuesto : ''} · Línea ${r.lineNumber}</div>`;
+  renderAsientoView(meta, r.asiento, true, true);
+  asientoView.classList.add('show');
+  toggleAsiento.textContent = 'Ocultar asiento contable';
+}
+
+// ---- GIRE Nuevo (.6105 — siempre con impuesto, IOSEP nunca aplica) ----
+function selectAsientoRowGire(data, idx, tr){
+  tbody.querySelectorAll('tr.row-selected').forEach(el => el.classList.remove('row-selected'));
+  tr.classList.add('row-selected');
+  const r = data.rows[idx];
+  const asiento = calcularAsientoBdp(r, true);
+  const meta = `<div class="asiento-meta"><b>Transacción 54-606</b> · Impuesto <b>${r.impuesto}</b> · ${r.nombreImpuesto} · Contrato ${r.contrato || '—'} · Línea ${r.lineNumber}</div>`;
+  renderAsientoView(meta, asiento, true);
+  asientoView.classList.add('show');
+  toggleAsiento.textContent = 'Ocultar asiento contable';
+}
+
+function renderAsientoView(metaHtml, asiento, showSubcuenta, showCheque, targetEl){
+  const target = targetEl || asientoView;
+  let rowsHtml = asiento.lines.map(l => `
+    <tr>
+      <td class="mono">${l.ordinal}</td>
+      <td class="mono">${l.rubro}</td>
+      <td>${l.descripcion}</td>
+      <td class="mono">${l.cuenta}</td>
+      ${showSubcuenta ? `<td class="mono">${l.subcuenta}</td>` : ''}
+      ${showCheque ? `<td class="mono">${l.cheque || ''}</td>` : ''}
+      <td class="amount">${l.debito ? fmtMonto(l.debito) : ''}</td>
+      <td class="amount">${l.credito ? fmtMonto(l.credito) : ''}</td>
+    </tr>
+  `).join('');
+  const totalsHtml = `
+    <tr class="asiento-totals">
+      <td></td><td></td><td></td>
+      <td>Total</td>${showSubcuenta ? '<td></td>' : ''}${showCheque ? '<td></td>' : ''}
+      <td class="amount">${fmtMonto(asiento.totalDebito)}</td>
+      <td class="amount">${fmtMonto(asiento.totalCredito)}</td>
+    </tr>
+  `;
+  target.innerHTML = `
+    <div class="ruler-block" style="background:var(--paper);color:var(--ink);">
+      ${metaHtml}
+      <table>
+        <thead><tr><th>Ordinal</th><th>Rubro</th><th>Descripción</th><th>Cuenta</th>${showSubcuenta ? '<th>Sub cuenta</th>' : ''}${showCheque ? '<th>Nro Cheque</th>' : ''}<th style="text-align:right;">Débito</th><th style="text-align:right;">Crédito</th></tr></thead>
+        <tbody>${rowsHtml}${totalsHtml}</tbody>
+      </table>
+      ${asiento.totalDebito !== asiento.totalCredito ? '<div class="empty-note">⚠ El asiento no cuadra (el total débito y crédito no coinciden) — revisar los importes de origen.</div>' : ''}
+    </div>
+  `;
+}
+
+toggleAsiento.addEventListener('click', () => {
+  asientoView.classList.toggle('show');
+  toggleAsiento.textContent = asientoView.classList.contains('show') ? 'Ocultar asiento contable' : 'Ver asiento contable';
+  if(asientoView.classList.contains('show') && !asientoView.innerHTML.trim()){
+    asientoView.innerHTML = '<div class="empty-note">Hacé clic en una línea de la tabla (marcada OK) para ver su asiento contable acá.</div>';
+  }
+});
+
+function renderRaw(data, config){
+  rawView.innerHTML = '';
+  const isEntes = data.kind === 'entes';
+  const isCbu = data.kind === 'cbu';
+  const isSimple = data.kind === 'simple';
+  const isGire = data.kind === 'gire';
+  const isBdp = data.kind === 'bdp';
+  let legend;
+  if(isEntes){
+    legend = `<div class="legend">
+        <span><i style="background:#4a3d24"></i>Ente</span>
+        <span><i style="background:#2e4a3d"></i>Descripción (del archivo)</span>
+        <span><i style="background:#2e3d4a"></i>Comisión/IVA emisores, percepción, retenciones (sin signo)</span>
+        <span><i style="background:#4a2e2e"></i>Comisión/IVA adherente (con signo)</span>
+        <span><i style="background:#3d2e4a"></i>Importe neto (con signo)</span>
+      </div>`;
+  } else if(isCbu){
+    legend = `<div class="legend">
+        <span><i style="background:#4a3d24"></i>CBU</span>
+        <span><i style="background:#5a2e4a"></i>Código de impuesto</span>
+        <span><i style="background:#4a2e2e"></i>Importe</span>
+      </div>`;
+  } else if(isSimple){
+    legend = `<div class="legend">
+        <span><i style="background:#4a2e2e"></i>Importe pagado</span>
+        <span><i style="background:#3d2e4a"></i>Fecha de pago</span>
+      </div>`;
+  } else if(isGire){
+    legend = `<div class="legend">
+        <span><i style="background:#3d2e4a"></i>Fecha de cobro</span>
+        <span><i style="background:#4a2e2e"></i>Importe cobrado</span>
+        <span><i style="background:#4a4224"></i>Código de barras</span>
+        ${data.hasImpuestos ? '<span><i style="background:#5a2e4a"></i>Nro de impuesto (dentro del CB)</span>' : ''}
+      </div>`;
+  } else if(isBdp){
+    legend = `<div class="legend">
+        <span>Archivo delimitado — separador detectado: "${data.delimiter === '\t' ? 'tabulador' : data.delimiter}". No se resalta por posiciones (no es de ancho fijo); solo se muestran las líneas Aprobadas.</span>
+      </div>`;
+  } else {
+    legend = `<div class="legend">
+        <span><i style="background:#4a3d24"></i>Id. deuda</span>
+        <span><i style="background:#2e4a3d"></i>Id. concepto</span>
+        <span><i style="background:#2e3d4a"></i>Id. usuario</span>
+        <span><i style="background:#4a2e2e"></i>Importe pagado</span>
+        <span><i style="background:#3d2e4a"></i>Fecha de pago</span>
+        <span><i style="background:#4a4224"></i>Código de barras</span>
+        <span><i style="background:#5a2e4a"></i>Nro de impuesto (dentro del CB)</span>
+      </div>`;
+  }
+
+  if(data.header){
+    const header = document.createElement('div');
+    header.className = 'ruler-block';
+    header.innerHTML = `<div class="line-label">Cabecera</div><div class="rawline">${data.header}</div>`;
+    rawView.appendChild(header);
+  }
+
+  data.rows.slice(0,5).forEach(r => {
+    const block = document.createElement('div');
+    block.className = 'ruler-block';
+    const highlighted = isEntes ? highlightEntes(r.raw, config)
+      : isCbu ? highlightCbu(r.raw, config)
+      : isSimple ? highlightSimple(r.raw, config)
+      : isGire ? highlightGire(r.raw, data, config)
+      : isBdp ? r.raw
+      : highlightImpuestos(r.raw, config);
+    block.innerHTML = `<div class="line-label">Línea ${r.lineNumber}</div><div class="rawline">${highlighted}</div>`;
+    rawView.appendChild(block);
+  });
+
+  const note = document.createElement('div');
+  note.className = 'empty-note';
+  note.innerHTML = legend + `<br>Mostrando hasta 5 líneas a modo de muestra, con los tramos coloreados según las posiciones configuradas para este tipo de archivo. Si algún color no coincide con el campo que corresponde, es señal de que hay que ajustar las posiciones.`;
+  rawView.appendChild(note);
+}
+
+fileInput.addEventListener('change', (e) => { if(e.target.files[0]) handleFile(e.target.files[0]); fileInput.value = ''; });
+
+['dragenter','dragover'].forEach(evt => {
+  slot.addEventListener(evt, (e) => { e.preventDefault(); if(!slot.classList.contains('disabled')) slot.classList.add('drag'); });
+});
+['dragleave','drop'].forEach(evt => {
+  slot.addEventListener(evt, (e) => { e.preventDefault(); slot.classList.remove('drag'); });
+});
+slot.addEventListener('drop', (e) => { const file = e.dataTransfer.files[0]; if(file) handleFile(file); });
+
+toggleRaw.addEventListener('click', () => {
+  rawView.classList.toggle('show');
+  toggleRaw.textContent = rawView.classList.contains('show') ? 'Ocultar posiciones del archivo crudo' : 'Ver posiciones del archivo crudo';
+});
+
+loadPersistedState();
+</script>
+</body>
+</html>
